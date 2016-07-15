@@ -14,7 +14,7 @@ from __future__ import print_function
 import itertools as it
 from random import choice
 from time import sleep
-from vizdoom import DoomGame, ScreenResolution
+from vizdoom import DoomGame,ScreenResolution
 
 game = DoomGame()
 
