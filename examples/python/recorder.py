@@ -21,6 +21,7 @@ import collector as cl
 from action import action as ac
 import action.Dispatcher as dp
 import action.ActionDispatcher as radp
+import action.DispatcherCircle
 
 game = DoomGame()
 
@@ -29,8 +30,10 @@ game = DoomGame()
 # Multiple config files are ok but combining these ones doesn't make much sense.
 
 game.load_config("../../examples/config/basic.cfg")
-#game.load_config("../../examples/config/deadly_corridor.cfg")
-game.load_config("../../examples/config/deathmatch.cfg")
+# game.load_config("../../examples/config/basic_test.cfg")
+# # #game.load_config("../../examples/config/deadly_corridor.cfg")
+# game.load_config("../../examples/config/deathmatch.cfg")
+# game.load_config("../../examples/config/deathmatch_test.cfg")
 #game.load_config("../../examples/config/defend_the_center.cfg")
 #game.load_config("../../examples/config/defend_the_line.cfg")
 #game.load_config("../../examples/config/health_gathering.cfg")
@@ -69,7 +72,7 @@ sleep_time = 40
 
 
 episodes = 10
-cl.init(record=True)
+cl.init(record=True, output='./output/8_basic_1/', skip=120)
 distance = 0
 
 
@@ -84,6 +87,7 @@ def printCross(depth):
 
 sum = 0
 dsp = dp.Dispatcher()
+dsp = action.DispatcherCircle.DispatcherCircle()
 # dsp = radp.ActionDispatcher()
 
 for i in range(episodes):
@@ -122,11 +126,12 @@ for i in range(episodes):
         dsp.handle(depth, a)
 
         # Display the image here!
-        depth *= 10 % 255 # make it brighter
         # printCross(depth) # print a cross
-        cv2.imshow('Doom Buffer', img)
         cl.prntscr(depth, img)
         cv2.waitKey(sleep_time)
+        depth *= 10 % 255 # make it brighter
+        cv2.imshow('Doom Buffer', img)
+
 
 
     print("episode finished!")
