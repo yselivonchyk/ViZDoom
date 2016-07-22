@@ -56,6 +56,9 @@ def loss(input, reconstruciton):
 
 
 def main(_=None):
+    activation_f = tf.nn.relu
+    min = 0
+
     image_placeholder  = tf.placeholder(tf.float32, [BATCH_SIZE, 28, 28, 1])
     labels_placeholder = tf.placeholder(tf.float32, [BATCH_SIZE, 28, 28, 1])
 
@@ -63,8 +66,8 @@ def main(_=None):
     train_images, train_labels = data_utils.mnist(training=True)
     test_images,  test_labels  = data_utils.mnist(training=False)
 
-    train_images, train_labels = ut.mnist_select_n_classes(train_images, train_labels, NUM_CLASSES)
-    test_images,  test_labels  = ut.mnist_select_n_classes(test_images, test_labels, NUM_CLASSES)
+    train_images, train_labels = ut.mnist_select_n_classes(train_images, train_labels, NUM_CLASSES, min=min)
+    test_images,  test_labels  = ut.mnist_select_n_classes(test_images, test_labels, NUM_CLASSES, min=min)
     train_images *= 2
     test_images *= 2
     visualization_set = train_images[0:BATCH_SIZE]
@@ -78,7 +81,7 @@ def main(_=None):
     ut.print_info('label example:  %s' % str(train_labels[0]))
 
 
-    with pt.defaults_scope(activation_fn=tf.nn.tanh,
+    with pt.defaults_scope(activation_fn=activation_f,
                            # batch_normalize=True,
                            # learned_moments_update_rate=0.0003,
                            # variance_epsilon=0.001,
