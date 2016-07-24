@@ -40,7 +40,7 @@ class Input:
         return batch
 
 
-def get_image_dimension(folder):
+def get_image_dimension(folder, channels=False):
     images = _get_image_file_list(folder)
     im = Image.open(images[0])
     return im.size
