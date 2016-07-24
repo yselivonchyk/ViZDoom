@@ -27,6 +27,20 @@ class RunIn8:
                 self.min_dist = dist
                 self.min_angle = self.angle
 
+    substep = 0
+    def subturn(self, direction):
+        '''Turn by 1 degree and make a step every STEP turns'''
+        self.substep = self.substep + 1 if self.substep < self.STEP else 0
+        action = ac.turn_left(ac.empty(), arg=direction)
+
+        # skip a bit once a circle
+        if self.turn != 0 and self.turn % 360 == 0 and self.substep == 0:
+            action = ac.empty()
+            print('SKIPPED A BIT')
+
+        if self.substep == 0:
+            action = ac.step(action, forward=True)
+        return action
 
     def action(self):
         if not self.direction_selected:
@@ -37,15 +51,16 @@ class RunIn8:
 
         if self.turn % 360 == 0:
             self.turn_back = 0;
+
+        print(self.turn, self.turn_back)
         if self.turn == self.TOTAL + 2*self.STEP:
             exit(0)
 
         else:
             if (self.turn % 360) != 180 or self.turn_back == 360:
-                self.turn += self.STEP
-                return ac.turn_left(ac.step(ac.empty(), forward=True), arg=self.STEP)
+                self.turn += 1
+                return self.subturn(1)
             else:
-                self.turn_back += self.STEP
-                return ac.turn_left(ac.step(ac.empty(), forward=True), arg=-self.STEP)
-
+                self.turn_back += 1
+                return self.subturn(-1)
 

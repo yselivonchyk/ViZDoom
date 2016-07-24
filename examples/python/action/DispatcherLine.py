@@ -3,18 +3,19 @@ import Discovery as dsc
 import action as ac
 import Initial as ini
 import MapTracker as mp
-import RunIn8
-import RunInCircle
+import RunInLine
+import InitialDelayHandler
 
-delay = 121
+# delay = 121
+delay = 22
 
-class DispatcherCircle:
+class DispatcherLine:
     """Class that react to the game"""
     currentHandler = None
     map = mp.MapTracker()
 
     def __init__(self):
-        self.currentHandler = wah.WallAlign(self.map)
+        self.currentHandler = InitialDelayHandler.Delay()
         # self.currentHandler = ini.Initial()
         # self.currentHandler = dsc.Discovery()
 
@@ -23,8 +24,7 @@ class DispatcherCircle:
         if self.currentHandler.finished:
             print('!!!new handler')
             self.map = mp.MapTracker()
-            self.currentHandler = RunIn8.RunIn8(map)
-            # self.currentHandler = RunInCircle.RunInCircle(map)
+            self.currentHandler = RunInLine.RunInLine(self.map)
 
     def action(self):
         action =  self.currentHandler.action()

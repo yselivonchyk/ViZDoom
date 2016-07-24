@@ -21,7 +21,7 @@ import collector as cl
 from action import action as ac
 import action.Dispatcher as dp
 import action.ActionDispatcher as radp
-import action.DispatcherCircle
+from action import DispatcherCircle, DispatcherLine, ActionDispatcher
 
 game = DoomGame()
 
@@ -41,10 +41,20 @@ game.load_config("../../examples/config/basic.cfg")
 #game.load_config("../../examples/config/predict_position.cfg")
 #game.load_config("../../examples/config/take_cover.cfg")
 
+# resolution = ScreenResolution.RES_1280X1024
+# record = False
+
+resolution = ScreenResolution.RES_160X120
+record = True
+output_folder = '../../data//8_basic_delay/'
+
+# print(dir(ScreenResolution))
+# exit(0)
+
 # Sets other rendering options
 game.set_render_hud(False)
 # game.set_render_crosshair(False)
-game.set_render_weapon(False)
+# game.set_render_weapon(False)
 # game.set_render_decals(False)
 # game.set_render_particles(False)
 # Enables freelook in engine
@@ -56,7 +66,7 @@ game.set_screen_format(ScreenFormat.RGB24)          # color
 # # game.set_screen_format(ScreenFormat.RGBA32)
 game.set_screen_format(ScreenFormat.CRCGCBDB)
 
-game.set_screen_resolution(ScreenResolution.RES_640X480)
+game.set_screen_resolution(resolution)
 
 # Enables spectator mode, so you can play. Sounds strange but it is agent who is supposed to watch not you.
 game.set_window_visible(True)
@@ -67,13 +77,17 @@ if spectator:
     game.set_mode(Mode.SPECTATOR)
 
 game.init()
-# sleep time in ms
 sleep_time = 40
-
-
 episodes = 10
-cl.init(record=True, output='./output/8_basic_1/', skip=120)
+cl.init(record=record, output=output_folder, skip=DispatcherCircle.delay, mode=resolution)
 distance = 0
+
+
+sum = 0
+dsp = dp.Dispatcher()
+dsp = DispatcherCircle.DispatcherCircle()
+# dsp = DispatcherLine.DispatcherLine()
+# dsp = radp.ActionDispatcher()
 
 
 def printCross(depth):
@@ -85,10 +99,6 @@ def printCross(depth):
     depth[y, ::step] = 200
     depth[::step, x] = 200
 
-sum = 0
-dsp = dp.Dispatcher()
-dsp = action.DispatcherCircle.DispatcherCircle()
-# dsp = radp.ActionDispatcher()
 
 for i in range(episodes):
     print("Episode #" +str(i+1))
@@ -123,6 +133,7 @@ for i in range(episodes):
             img_buffer = img_buffer[:, :, ::-1]
             depth = img_buffer[:, :, 0]
             img =  img_buffer[:, :, 1:] -0
+        depth = depth - 0
         dsp.handle(depth, a)
 
         # Display the image here!
@@ -130,7 +141,7 @@ for i in range(episodes):
         cl.prntscr(depth, img)
         cv2.waitKey(sleep_time)
         depth *= 10 % 255 # make it brighter
-        cv2.imshow('Doom Buffer', img)
+        cv2.imshow('Doom Buffer', depth)
 
 
 

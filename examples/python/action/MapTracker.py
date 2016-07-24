@@ -205,7 +205,8 @@ class MapTracker:
     def compensate_yaw(offset, yaw):
         # print 'yaw', yaw
         if yaw % 90 != 0:
-            print yaw
+            print 'compensate yaw', yaw
+
         assert yaw % 90 == 0
 
         if yaw == 90:
