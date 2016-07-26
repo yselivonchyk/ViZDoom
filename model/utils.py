@@ -1,7 +1,6 @@
 import time, datetime
 import numpy as np
 from matplotlib import pyplot as plt
-from PIL import Image
 import os
 import collections
 import tensorflow as tf
@@ -68,7 +67,7 @@ def _save_image(name='image', save_params=None):
     name = name if save_params is None else to_file_name(save_params)
     name = os.path.join(image_folder, name)
     if '.' in name:
-        name += '.jpg'
+        name += '.png'
     plt.savefig(name, dpi=300, facecolor='w', edgecolor='w',
                 orientation='portrait', papertype=None, format=None,
                 transparent=False, bbox_inches='tight', pad_inches=0.1,
