@@ -27,7 +27,7 @@ ImportExecutables.cmake
 **.vcxproj.filters
 **.vcxproj.user
 
-# Python 
+# Python
 **.pyd
 **.pyc
 examples/python/*.cfg
@@ -91,3 +91,7 @@ src/vizdoom/zlib/x64/
 # CLion & PyCharm
 **.idea
 
+# outputs
+data/tmp/
+model/img/
+model/MNIST/
