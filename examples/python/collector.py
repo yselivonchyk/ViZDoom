@@ -58,5 +58,5 @@ def prntscr(depth_img, img):
         if depth_img is not None:
             cv2.imwrite(os.path.join(depth_output, name), depth_img)
         if img is not None:
-            cv2.imwrite(os.path.join(color_output, name), depth_img)
+            cv2.imwrite(os.path.join(color_output, name), img)
 

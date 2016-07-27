@@ -7,9 +7,9 @@ from __future__ import print_function
 from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
 import numpy as np
-import model.utils as ut
-import model.input as inp
-import model.activation_functions as act
+import utils as ut
+import input as inp
+import activation_functions as act
 
 import prettytensor as pt
 from prettytensor.tutorial import data_utils
