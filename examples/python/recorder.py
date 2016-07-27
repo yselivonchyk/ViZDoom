@@ -29,29 +29,27 @@ game = DoomGame()
 # Don't load two configs cause the second will overrite the first one.
 # Multiple config files are ok but combining these ones doesn't make much sense.
 
-game.load_config("../../examples/config/basic.cfg")
-# game.load_config("../../examples/config/basic_test.cfg")
-# # #game.load_config("../../examples/config/deadly_corridor.cfg")
-# game.load_config("../../examples/config/deathmatch.cfg")
-# game.load_config("../../examples/config/deathmatch_test.cfg")
-#game.load_config("../../examples/config/defend_the_center.cfg")
-#game.load_config("../../examples/config/defend_the_line.cfg")
-#game.load_config("../../examples/config/health_gathering.cfg")
-#game.load_config("../../examples/config/my_way_home.cfg")
-#game.load_config("../../examples/config/predict_position.cfg")
-#game.load_config("../../examples/config/take_cover.cfg")
+game.load_config("../../examples/config_all_actions/basic.cfg")
+# game.load_config("../../examples/config_all_actions/deadly_corridor.cfg")
+game.load_config("../../examples/config_all_actions/deathmatch.cfg")
+# game.load_config("../../examples/config_all_actions/defend_the_center.cfg")
+# game.load_config("../../examples/config_all_actions/defend_the_line.cfg")
+# game.load_config("../../examples/config_all_actions/health_gathering.cfg")      # large with constant damage
+# game.load_config("../../examples/config_all_actions/my_way_home.cfg")           # labirinth
+# game.load_config("../../examples/config_all_actions/predict_position.cfg")      # large map with 1 randomly moving mob
+# game.load_config("../../examples/config_all_actions/take_cover.cfg")
 
 # resolution = ScreenResolution.RES_1280X1024
 # record = False
 
 resolution = ScreenResolution.RES_160X120
 record = True
-output_folder = '../../data//8_basic_delay/'
+output_folder = '../../data/line_dm_2/'
 
 # print(dir(ScreenResolution))
 # exit(0)
 
-# Sets other rendering options
+# Sets other rendering option
 game.set_render_hud(False)
 # game.set_render_crosshair(False)
 # game.set_render_weapon(False)
@@ -79,14 +77,14 @@ if spectator:
 game.init()
 sleep_time = 40
 episodes = 10
-cl.init(record=record, output=output_folder, skip=DispatcherCircle.delay, mode=resolution)
+cl.init(record=record, output=output_folder, skip=DispatcherLine.delay, mode=resolution)
 distance = 0
 
 
 sum = 0
 dsp = dp.Dispatcher()
 dsp = DispatcherCircle.DispatcherCircle()
-# dsp = DispatcherLine.DispatcherLine()
+dsp = DispatcherLine.DispatcherLine()
 # dsp = radp.ActionDispatcher()
 
 

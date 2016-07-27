@@ -3,10 +3,11 @@ import numpy as np
 import math
 import time as t
 
-class RunIn8:
-    STEP = 5
-    TOTAL = 360
+STEP = 2
+TOTAL = 360
 
+
+class RunIn8:
     finished = False
     turn = 0
     turn_back = 0
@@ -30,7 +31,7 @@ class RunIn8:
     substep = 0
     def subturn(self, direction):
         '''Turn by 1 degree and make a step every STEP turns'''
-        self.substep = self.substep + 1 if self.substep < self.STEP else 0
+        self.substep = self.substep + 1 if self.substep < STEP else 0
         action = ac.turn_left(ac.empty(), arg=direction)
 
         # skip a bit once a circle
@@ -53,7 +54,7 @@ class RunIn8:
             self.turn_back = 0;
 
         print(self.turn, self.turn_back)
-        if self.turn == self.TOTAL + 2*self.STEP:
+        if self.turn == TOTAL + 2*STEP:
             exit(0)
 
         else:

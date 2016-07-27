@@ -3,10 +3,10 @@ import numpy as np
 import math
 import time as t
 
-class RunInCircle:
-    STEP = 4
-    TOTAL = 360*4
+STEP = 1
+TOTAL = 360*3
 
+class RunInCircle:
     finished = False
     turn = 0
 
@@ -26,15 +26,15 @@ class RunInCircle:
                 self.min_dist = dist
                 self.min_angle = self.directions_checked
         else:
-            self.finished = self.turn >= self.TOTAL
-            if self.turn >= self.TOTAL:
+            self.finished = self.turn >= TOTAL
+            if self.turn >= TOTAL:
                 exit(0)
 
     substep = 0
     def subturn(self):
         '''Turn by 1 degree and make a step every STEP turns'''
         self.turn += 1
-        self.substep = self.substep + 1 if self.substep < self.STEP else 0
+        self.substep = self.substep + 1 if self.substep < STEP else 0
         action = ac.turn_left(ac.empty(), arg=1)
 
         # skip a bit once a circle
