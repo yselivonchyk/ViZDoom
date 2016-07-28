@@ -15,7 +15,7 @@ import time as t
 
 
 def modify_ds(ds):
-    print(ds.images.shape)
+    # print(ds.images.shape)
     return DataSet(ds.images, ds.labels)
 
 

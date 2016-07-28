@@ -1,9 +1,11 @@
-import time, datetime
+import datetime
 import numpy as np
 from matplotlib import pyplot as plt
 import os
 import collections
 import tensorflow as tf
+from scipy import misc
+
 
 image_folder = './img/'
 _start_time = None
@@ -22,6 +24,7 @@ def _get_time_offset():
         return '\t\t'
     sec = (time - _start_time).total_seconds()
     return '(+%d)\t' % sec
+
 
 def print_time(string):
     time = datetime.datetime.now().time().strftime('%H:%M:%S')
@@ -52,26 +55,33 @@ def mnist_select_n_classes(train_images, train_labels, num_classes, min=None, sc
         inputs = inputs - np.min(inputs) + min
     return inputs, np.asarray(result_labels)
 
+
 def rescale_ds(ds, min, max):
+    print_info('rescale call: (min: %s, max: %s) %d' % (str(min), str(max), len(ds)))
+    if max is None:
+        return np.asarray(ds) - np.min(ds)
     ds_min, ds_max = np.min(ds), np.max(ds)
     ds_gap = ds_max - ds_min
     scale_factor = (max - min)/ds_gap
     ds = np.asarray(ds) * scale_factor
     shift_factor = min - np.min(ds)
     ds += shift_factor
-    print('ds', ds.shape, ds)
     return ds
 
 
-def _save_image(name='image', save_params=None):
-    name = name if save_params is None else to_file_name(save_params)
-    name = os.path.join(image_folder, name)
-    if '.' in name:
-        name += '.png'
-    plt.savefig(name, dpi=300, facecolor='w', edgecolor='w',
-                orientation='portrait', papertype=None, format=None,
-                transparent=False, bbox_inches='tight', pad_inches=0.1,
-                frameon=None)
+def _save_image(name='image', save_params=None, image=None):
+    file_name = name if save_params is None else to_file_name(save_params)
+    file_name += '.png'
+    name = os.path.join(image_folder, file_name)
+
+
+    if image is not None:
+        misc.imsave(os.path.join(image_folder, file_name), arr=image, format='png')
+    #
+    # plt.savefig(name, dpi=300, facecolor='w', edgecolor='w',
+    #             orientation='portrait', papertype=None, format=None,
+    #             transparent=False, bbox_inches='tight', pad_inches=0.1,
+    #             frameon=None)
 
 
 def _show_picture(pic):
@@ -82,15 +92,15 @@ def _show_picture(pic):
 
 
 def reconstruct_image(img, name='image', save_params=None):
-    img = (np.reshape(img, (28, 28)) * 255)
+    img = (np.reshape(img, (28, 28)) * 255).astype(np.uint)
     plt.imshow(img)
 
 
 def reconstruct_images(input, output, name='recon'):
     res = []
     for _, arr_in in enumerate(input):
-        img_in = (np.reshape(arr_in, (28, 28)) * 255)
-        img_out = (np.reshape(output[_], (28, 28)) * 255)
+        img_in = (np.reshape(arr_in, (28, 28)) * 256.0)
+        img_out = (np.reshape(output[_], (28, 28)) * 256.0)
         res.append(np.concatenate((img_in, img_out)))
     img = np.zeros((56, 28))
     for i in res:
@@ -107,16 +117,13 @@ def concat_images(im1, im2, axis=0):
 def _reconstruct_picture_line(pictures, shape):
     line_picture = None
     for _, img in enumerate(pictures):
+        img = (img*255).astype(np.uint8)
         if len(img.shape) == 1:
-            img = (np.reshape(img, shape) * 255)
+            img = (np.reshape(img, shape))
         if len(img.shape) == 3 and img.shape[2] == 1:
-            img = (np.reshape(img, (img.shape[0], img.shape[1])) * 255)
+            img = (np.reshape(img, (img.shape[0], img.shape[1])))
         line_picture = concat_images(line_picture, img)
     return line_picture
-
-
-def _show_pil(full_picture):
-    pass
 
 
 def show_plt():
@@ -130,27 +137,27 @@ def _construct_img_shape(img):
 
 def reconstruct_images_epochs(epochs, original=None, save_params=None, img_shape=None):
     full_picture = None
-
     img_shape = img_shape if img_shape is not None else _construct_img_shape(epochs[0][0])
-    print(img_shape)
 
-    if original is not None:
+    if original is not None and epochs is not None:
         min_ref, max_ref = np.min(original), np.max(original)
-        print_info('reconstruction char. in epochs (min, max)|original: (%f %f)|(%f %f)' % (np.min(epochs), np.max(epochs), min_ref, max_ref))
-        epochs[epochs > max_ref] = max_ref
-        epochs[epochs < min_ref] = min_ref
-        epochs = (epochs - min_ref) / (max_ref - min_ref)
-        original = (original - min_ref) / (max_ref - min_ref)
+        print_info('epoch avg: (original: %s) -> %s' % (str(np.mean(original)), str((np.mean(epochs[0]), np.mean(epochs[1]), np.mean(epochs[2])))))
+        print_info('reconstruction char. in epochs (min, max)|original: (%f %f)|(%f %f)' % (np.min(epochs[1:]), np.max(epochs), min_ref, max_ref))
 
-    for _, epoch in enumerate(epochs):
-        full_picture = concat_images(full_picture, _reconstruct_picture_line(epoch, img_shape), axis=1)
+        # epochs[epochs > max_ref] = max_ref
+        # epochs[epochs < min_ref] = min_ref
+        # epochs = (epochs - min_ref) / (max_ref - min_ref)
+        # original = (original - min_ref) / (max_ref - min_ref)
+
+    if epochs is not None:
+        for _, epoch in enumerate(epochs):
+            full_picture = concat_images(full_picture, _reconstruct_picture_line(epoch, img_shape), axis=1)
     if original is not None:
+        print('original shape', original[0].shape)
         full_picture = concat_images(full_picture, _reconstruct_picture_line(original, img_shape), axis=1)
 
     _show_picture(full_picture)
-    _save_image(save_params=save_params)
-
-    _show_pil(full_picture)
+    _save_image(save_params=save_params, image=full_picture)
 
 
 def to_file_name(obj):
@@ -179,6 +186,9 @@ def to_file_name(obj):
 
         if isinstance(value, int):
             value = '%2d' % value
+
+        if isinstance(value, list):
+            value = '|'.join([str(i) for i in value])
 
         if len(value) > 8:
             print_info('truncating this: %s %s' % (key, value))

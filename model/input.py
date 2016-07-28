@@ -46,15 +46,23 @@ def get_image_dimension(folder, channels=False):
     return im.size
 
 
+def _embed_3_axis(img):
+    """embed 1 channel greyscale image into [w, h, ch] array"""
+    if len(img.shape) == 2:
+        res = np.ndarray((img.shape[0], img.shape[1], 1), dtype=np.float32)
+        res[:, :, 0] = img
+        return res
+    return img
+
 def get_image_shape(folder):
     images = _get_image_file_list(folder)
-    image = misc.imread(images[0])
+    image =_embed_3_axis(misc.imread(images[0]))
     return image.shape
 
 
 def get_images(folder):
     images = _get_image_file_list(folder)
-    images = list(map(misc.imread, images))
+    images = list(map(_embed_3_axis, map(misc.imread, images)))
     return images
 
 
@@ -65,13 +73,13 @@ def _get_image_file_list(folder):
 
 
 def main():
-    print(get_image_dimension(INPUT_FOLDER))
+    print("asdf", get_image_dimension(INPUT_FOLDER))
     images = get_images(INPUT_FOLDER)
-    print(len(images))
+    print('aadf', len(images))
 
     inputs = Input(images)
     for j in range(10):
-        print(inputs.generate_minibatch(7).shape)
+        print('adf', inputs.generate_minibatch(7).shape)
 
     import matplotlib.pyplot as pyplt
     pyplt.imshow(inputs.generate_minibatch(7)[0])
