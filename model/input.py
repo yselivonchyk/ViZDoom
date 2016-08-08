@@ -3,8 +3,6 @@ import os
 import numpy as np
 from os import listdir
 from os.path import isfile, join
-from PIL import Image
-
 
 
 INPUT_FOLDER = '../data/circle_basic_1/img/32_32'
@@ -40,10 +38,10 @@ class Input:
         return batch
 
 
-def get_image_dimension(folder, channels=False):
-    images = _get_image_file_list(folder)
-    im = Image.open(images[0])
-    return im.size
+# def get_image_dimension(folder, channels=False):
+#     images = _get_image_file_list(folder)
+#     im = Image.open(images[0])
+#     return im.size
 
 
 def _embed_3_axis(img):
@@ -73,9 +71,7 @@ def _get_image_file_list(folder):
 
 
 def main():
-    print("asdf", get_image_dimension(INPUT_FOLDER))
     images = get_images(INPUT_FOLDER)
-    print('aadf', len(images))
 
     inputs = Input(images)
     for j in range(10):
