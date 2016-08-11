@@ -123,7 +123,7 @@ def get_batch_shape():
 
 
 def checkpoint(runner, sess, encoddings, accuracy):
-  epochs_past = int(bookkeeper.global_step().eval()) / EPOCH_SIZE
+  epochs_past = int(bookkeeper.global_step().eval()/ EPOCH_SIZE)
   meta = {'suf': 'encodings', 'e': int(epochs_past), 'z_ac': accuracy}
   runner._saver.max_to_keep = 2
   runner._saver.save(sess, FLAGS.save_path, int(epochs_past))
@@ -187,7 +187,7 @@ def main(_=None,
 
     if FLAGS.load_state:
       runner.load_from_checkpoint(sess)
-      epochs_past = bookkeeper.global_step().eval() / EPOCH_SIZE
+      epochs_past = int(bookkeeper.global_step().eval() / EPOCH_SIZE)
       ut.print_info('Checkpoint restore requested. previous epoch: %d' % epochs_past, color=31)
 
     for epoch in xrange(epochs):
@@ -225,7 +225,7 @@ def main(_=None,
         checkpoint(runner, sess, encoddings, accuracy_by_epoch[-1])
 
     meta['acu'] = int(np.min(accuracy_by_epoch))
-    meta['e'] = bookkeeper.global_step().eval() / EPOCH_SIZE
+    meta['e'] = int(bookkeeper.global_step().eval() / EPOCH_SIZE)
     ut.reconstruct_images_epochs(np.asarray(epoch_reconstruction),
                                  visualization_data,
                                  save_params=meta,

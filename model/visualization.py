@@ -64,6 +64,7 @@ def save_fig(file_name):
 
 def visualize_data(data, file_name=None):
   plt.figure()
+  colors = np.squeeze(3 * np.pi * (np.random.rand(1, len(data)) - 0.5))
   subplot = plt.subplot(2, 2, 1)
   subplot.scatter(data[:, 0], data[:, 1], c=colors, cmap=plt.cm.Spectral)
   subplot = plt.subplot(2, 2, 2)
