@@ -32,12 +32,12 @@ tf.app.flags.DEFINE_string('logdir', '', 'where to save logs.')
 tf.app.flags.DEFINE_string('model', 'full',
                            'Choose one of the models, either full or conv')
 tf.app.flags.DEFINE_string('input_folder',
-                           '../data/tmp/circle_pos_delay_3/img/',
+                           '../data/tmp/circle_basic_delay_4/img/',
                            'Choose input source folder')
 tf.app.flags.DEFINE_float("learning_rate", 1e-2, "learning rate")
 tf.app.flags.DEFINE_boolean("interactive", True, "use interactive interface")
-tf.app.flags.DEFINE_boolean("load state", True, "load existing model state")
-tf.app.flags.DEFINE_integer("save_every", 1000, "load existing model state")
+tf.app.flags.DEFINE_boolean("load_state", True, "load existing model state")
+tf.app.flags.DEFINE_integer("save_every", 250, "load existing model state")
 FLAGS = tf.app.flags.FLAGS
 
 FLAGS = tf.app.flags.FLAGS
@@ -123,7 +123,7 @@ def get_batch_shape():
 
 
 def checkpoint(runner, sess, encoddings, accuracy):
-  epochs_past = int(bookkeeper.global_step().eval()/ EPOCH_SIZE)
+  epochs_past = int(bookkeeper.global_step().eval() / EPOCH_SIZE)
   meta = {'suf': 'encodings', 'e': int(epochs_past), 'z_ac': accuracy}
   runner._saver.max_to_keep = 2
   runner._saver.save(sess, FLAGS.save_path, int(epochs_past))
@@ -142,8 +142,8 @@ visualization_substeps = 10
 def main(_=None,
          weight_init=None,
          activation=act.sigmoid,
-         epochs=5,
-         learning_rate=0.01,
+         epochs_to_train=10,
+         learning_rate=0.0004,
          source_folder=FLAGS.input_folder,
          enc=encoder_2,
          dec=decoder_2,
@@ -154,14 +154,17 @@ def main(_=None,
   accuracy_by_epoch = []
   epoch_reconstruction = []
   IMAGE_SHAPE = inp.get_image_shape(source_folder)
+  input_name = FLAGS.input_folder.split('/')[-3]
   meta = {'suf': 'doom_bs', 'act': activation.func, 'lr': learning_rate,
-          'init': weight_init, 'bs': BATCH_SIZE, 'h': get_layer_info(), 'opt': optimizer}
+          'init': weight_init, 'bs': BATCH_SIZE, 'h': get_layer_info(), 'opt': optimizer,
+          'inp': input_name}
   ut.configure_folders(FLAGS, meta)
 
   input_placeholder = tf.placeholder(tf.float32, get_batch_shape())
   output_placeholder = tf.placeholder(tf.float32, get_batch_shape())
 
-  train_data, test_data, visualization_data = fetch_datasets(activation.min, activation.max, source_folder)
+  train_data, test_data, visualization_data = \
+    fetch_datasets(activation.min, activation.max, source_folder)
   assert_model(input_placeholder, output_placeholder, test_data, train_data, visualization_data)
 
   with pt.defaults_scope(activation_fn=activation.func,
@@ -190,15 +193,16 @@ def main(_=None,
       epochs_past = int(bookkeeper.global_step().eval() / EPOCH_SIZE)
       ut.print_info('Checkpoint restore requested. previous epoch: %d' % epochs_past, color=31)
 
-    for epoch in xrange(epochs):
+    for train_epoch in xrange(epochs_to_train):
       epoch_info = ''
 
-      if epoch % np.ceil(epochs / float(visualization_substeps)) == 0 or epoch + 1 == epochs:
+      if train_epoch % np.ceil(epochs_to_train / float(visualization_substeps)) == 0 or train_epoch + 1 == epochs_to_train:
         reconstruct, loss_value = sess.run([output_tensor, pretty_loss],
                                            {input_placeholder: visualization_data,
                                             output_placeholder: visualization_data})
         epoch_reconstruction.append(reconstruct)
-        epoch_info += 'epoch:%d (min, max): (%f %f)' % (epoch, np.min(reconstruct), np.max(reconstruct))
+        epoch_info += 'epoch:%d (min, max): (%f %f)' % \
+                      (train_epoch, np.min(reconstruct), np.max(reconstruct))
 
       runner.train_model(
         train,
@@ -209,20 +213,22 @@ def main(_=None,
         print_every=None
       )
 
-      accuracy = runner.evaluate_model(
+      accuracy = np.sqrt(runner.evaluate_model(
         pretty_loss,
         TEST_SIZE,
         feed_vars=(input_placeholder, output_placeholder),
-        feed_data=pt.train.feed_numpy(BATCH_SIZE, test_data, test_data))
-      ut.print_time('Accuracy after %2d/%d epoch %.2f; %s' % (epoch + 1, epochs, accuracy, epoch_info))
+        feed_data=pt.train.feed_numpy(BATCH_SIZE, test_data, test_data)))
+
+      print_epoch_info(accuracy, train_epoch, epoch_info, epochs_to_train, epochs_past)
       accuracy_by_epoch.append(accuracy)
 
-      if epoch + 1 == epochs or (epoch + 1) % FLAGS.save_every == 0:
+      if train_epoch + 1 == epochs_to_train or (train_epoch + 1) % FLAGS.save_every == 0:
         feed = zip(xrange(EPOCH_SIZE), pt.train.feed_numpy(BATCH_SIZE, train_data, train_data))
-        mapping = lambda data: sess.run([encode_op], dict(zip((input_placeholder, output_placeholder), data)))[0]
-        result_batches = [mapping(data) for _, data in feed]
-        encoddings = np.vstack(result_batches)
-        checkpoint(runner, sess, encoddings, accuracy_by_epoch[-1])
+        encode_batch = lambda data: \
+          sess.run([encode_op], dict(zip((input_placeholder, output_placeholder), data)))[0]
+        result_batches = [encode_batch(data) for _, data in feed]
+        encoding = np.vstack(result_batches)
+        checkpoint(runner, sess, encoding, accuracy_by_epoch[-1])
 
     meta['acu'] = int(np.min(accuracy_by_epoch))
     meta['e'] = int(bookkeeper.global_step().eval() / EPOCH_SIZE)
@@ -235,12 +241,24 @@ def main(_=None,
   return meta, accuracy_by_epoch
 
 
-def search_learning_rate(lrs=[0.01, 0.001, 0.0001, 0.00001], enc=encoder_2, dec=decoder_2, epochs=50):
+def print_epoch_info(accuracy, epoch, epoch_info, epochs, epochs_past):
+  previous_epoch_info = '' if epochs_past is None else '+%d' % epochs_past
+  ut.print_time('Accuracy after %2d/%d%s epoch %.2f; %s'
+                % (epoch + 1,
+                   epochs,
+                   previous_epoch_info,
+                   accuracy,
+                   epoch_info)
+                )
+
+
+def search_learning_rate(lrs=[0.01, 0.003, 0.001, 0.0004, 0.0001, 0.00003, 0.00001],
+                         enc=encoder_2, dec=decoder_2, epochs=1000):
   result_best, arg_best = None, None
   result_summary = []
   result_list = []
   for lr in lrs:
-    meta, accuracy_by_epoch = main(learning_rate=lr, epochs=epochs, enc=enc, dec=dec)
+    meta, accuracy_by_epoch = main(learning_rate=lr, epochs_to_train=epochs, enc=enc, dec=dec)
     result_list.append((ut.to_file_name(meta), accuracy_by_epoch))
     best_accuracy = np.min(accuracy_by_epoch)
     result_summary.append('\n\r lr:%2.5f \tq:%.2f' % (lr, best_accuracy))
@@ -249,7 +267,7 @@ def search_learning_rate(lrs=[0.01, 0.001, 0.0001, 0.00001], enc=encoder_2, dec=
       arg_best = lr
   meta = {'suf': 'grid_doom_bs', 'e': epochs, 'lrs': lrs, 'enc': enc, 'dec': dec, 'acu': result_best,
           'bs': BATCH_SIZE, 'h': get_layer_info()}
-  ut.plot_log(meta, result_list)
+  ut.plot_epoch_progress(meta, result_list)
   print(''.join(result_summary))
   ut.print_info('BEST Q: %d IS ACHIEVED FOR LR: %f' % (result_best, arg_best), 36)
 
@@ -267,10 +285,8 @@ if __name__ == '__main__':
   # search_learning_rate()
   # search_learning_rate(lrs=[0.03, 0.001, 0.0001, 0.00001], enc=encoder_2, epochs=50)
   FLAGS.load_state = True
-  main(learning_rate=0.0004, epochs=10)
-
-  # main(learning_rate=0.0001, epochs=1000)
-  # main(learning_rate=0.0004, epochs=100)
-  # imgs = np.asarray(inp.get_images(FLAGS.input_folder))/255.0
-  # ut.reconstruct_images_epochs(None, imgs[0:10], save_params={'test':'test'}, img_shape=imgs[0].shape)
-  # current best sigmoid (0, 1) lr=0.001
+  LAYER_NARROW = 4
+  for i in range(10):
+    main(learning_rate=0.0004, epochs_to_train=10000)
+  # for i in range(10):
+  #   search_learning_rate()

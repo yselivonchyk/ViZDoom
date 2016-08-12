@@ -4,9 +4,11 @@ from matplotlib import pyplot as plt
 import os
 import collections
 import tensorflow as tf
+import pickle
 from scipy import misc
 
 IMAGE_FOLDER = './img/'
+TEMP_FOLDER = './tmp/'
 EPOCH_THRESHOLD = 4
 FLAGS = tf.app.flags.FLAGS
 
@@ -172,6 +174,11 @@ def _abbreviate_string(value):
   abbr = [letter for letter in value if letter.isupper()]
   if len(abbr) > 1:
     return ''.join(abbr)
+
+  if len(value.split('_')) > 2:
+    parts = value.split('_')
+    letters = ''.join(x[0] for x in parts)
+    return letters
   return value
 
 
@@ -184,7 +191,7 @@ def to_file_name(obj, folder=None, ext=None):
 
     if value is None:
       value = 'na'
-
+    #FUNC and OBJECTS
     if 'function' in str(value):
       value = str(value).split()[1].split('.')[0]
       parts = value.split('_')
@@ -195,27 +202,35 @@ def to_file_name(obj, folder=None, ext=None):
       value = _abbreviate_string(value)
     elif isinstance(value, type):
       value = _abbreviate_string(value.__name__)
-
+    # FLOATS
     if isinstance(value, float) or isinstance(value, np.float32):
-      value = '%.4f' % value
-
+      if value < 0.0:
+        value = '%.6f' % value
+      elif value > 1000000:
+        value = '%.0f' % value
+      else:
+        value = '%.4f' % value
+    #INTS
     if isinstance(value, int):
       value = '%02d' % value
-
+    #LIST
     if isinstance(value, list):
       value = '|'.join(map(str, value))
 
+    value = _abbreviate_string(value)
     if len(value) > 9:
       print_info('truncating this: %s %s' % (key, value))
       value = value[0:9]
 
     if 'suf' in key:
       name = str(value) + name
-    else:
-      name += '__%s|%s' % (key, str(value))
+      continue
 
     if 'postf' in key:
       postfix = '_' + str(value)
+      continue
+
+    name += '__%s|%s' % (key, str(value))
 
   name += postfix
 
@@ -234,26 +249,43 @@ def print_model_info():
     print(v.name, v.get_shape())
 
 
-def plot_log(meta, data):
-  name = IMAGE_FOLDER + '/grid_lr_' + to_file_name(meta) + '.png'
+def plot_epoch_progress(meta, data, interactive=False):
+  meta['suf'] = 'grid_search_lr'
+  png_path = to_file_name(meta, IMAGE_FOLDER, 'png')
+  backup_path = to_file_name(meta, IMAGE_FOLDER, 'txt')
+  pickle.dump((meta, data), open(backup_path, "wb"))
 
   x = np.arange(0, len(data[0][1])) + 1
   for _, experiment in enumerate(data):
-    plt.semilogy(x, experiment[1], label=experiment[0], marker='o', linestyle='--')
+    plt.semilogy(x, experiment[1], label=experiment[0], marker='.', linestyle='--')
   plt.xlim([1, x[-1]])
   plt.legend(loc='best', fancybox=True, framealpha=0.5, fontsize=8)
-  plt.savefig(name, dpi=300, facecolor='w', edgecolor='w',
+  plt.savefig(png_path, dpi=300, facecolor='w', edgecolor='w',
               transparent=False, bbox_inches='tight', pad_inches=0.1,
               frameon=None)
+  if interactive:
+    plt.show()
+
+
+def mkdir(folders):
+  if isinstance(folders, str):
+    folders = [folders]
+  for _, folder in enumerate(folders):
+    if not os.path.exists(folder):
+      os.mkdir(folder)
 
 
 def configure_folders(FLAGS, meta):
   folder_name = to_file_name(meta) + '/'
-  full_path = os.path.join('./tmp/', folder_name)
-  if not os.path.exists(full_path):
-    os.mkdir(full_path)
-  log_path = os.path.join(full_path, 'log')
-  if not os.path.exists(log_path):
-    os.mkdir(log_path)
-  FLAGS.save_path = full_path
-  FLAGS.logdir = log_path
+  checkpoint_folder = os.path.join(TEMP_FOLDER, folder_name)
+  log_folder = os.path.join(checkpoint_folder, 'log')
+  mkdir([TEMP_FOLDER, IMAGE_FOLDER, checkpoint_folder, log_folder])
+  FLAGS.save_path = checkpoint_folder
+  FLAGS.logdir = log_folder
+
+
+if __name__ == '__main__':
+  data = []
+  for i in range(10):
+      data.append((str(i), np.random.rand(1000)))
+  plot_epoch_progress({'f': 'test'}, data, True)

@@ -3,6 +3,7 @@ import os
 import numpy as np
 from os import listdir
 from os.path import isfile, join
+import utils as ut
 
 
 INPUT_FOLDER = '../data/circle_basic_1/img/32_32'
@@ -59,9 +60,13 @@ def get_image_shape(folder):
 
 
 def get_images(folder):
-    images = _get_image_file_list(folder)
-    images = list(map(_embed_3_axis, map(misc.imread, images)))
-    return images
+    files = _get_image_file_list(folder)
+    files.sort()
+    imgaes = list(map(_embed_3_axis, map(misc.imread, files)))
+    to_int = lambda s: int(s.split('/')[-1].split('.')[0][1:])
+    names = list(map(to_int, files))
+    ut.print_info('Found %d images: %s...' % (len(names), str(names[1:5])))
+    return imgaes
 
 
 def _get_image_file_list(folder):
