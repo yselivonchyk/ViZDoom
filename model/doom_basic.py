@@ -94,24 +94,16 @@ def square_loss(output_tensor, output_actual):
   return output_tensor.l2_regression(pt.wrap(output_actual).flatten())
 
 
-def assert_model(input_placeholder, output_placeholder, test_data, train_data, visualization_data):
-  assert visualization_data.shape == input_placeholder.get_shape()
-  assert len(train_data.shape) == len(input_placeholder.get_shape())
-  assert len(test_data.shape) == len(input_placeholder.get_shape())
-  assert visualization_data.shape == output_placeholder.get_shape()
-  assert len(train_data.shape) == len(output_placeholder.get_shape())
-  assert len(test_data.shape) == len(output_placeholder.get_shape())
-
-
-def fetch_datasets(data_min, data_max, source_folder):
-  global EPOCH_SIZE, TEST_SIZE
+def fetch_datasets(activation_func_bounds, source_folder):
   original_data = np.asarray(inp.get_images(source_folder))
+
+  global EPOCH_SIZE, TEST_SIZE, IMAGE_SHAPE
+  IMAGE_SHAPE = inp.get_image_shape(source_folder)
+  EPOCH_SIZE = len(original_data) // BATCH_SIZE
+  TEST_SIZE = len(original_data) // BATCH_SIZE
+
   input_source, _ = data_utils.permute_data((original_data, np.zeros(len(original_data))))
-
-  EPOCH_SIZE = len(input_source) // BATCH_SIZE
-  TEST_SIZE = len(input_source) // BATCH_SIZE
-
-  input_source = ut.rescale_ds(input_source, data_min, data_max)
+  input_source = inp.rescale_ds(input_source, activation_func_bounds.min, activation_func_bounds.max)
   return input_source, original_data, input_source[0:BATCH_SIZE]
 
 
@@ -136,50 +128,69 @@ def get_layer_info():
   return [LAYER_ENCODER, LAYER_NARROW, LAYER_DECODER]
 
 
+def get_past_epochs():
+  return int(bookkeeper.global_step().eval() / EPOCH_SIZE)
+
+
+def print_epoch_info(accuracy, current_epoch, reconstructions, epochs, epochs_past):
+  reconstruction_info = ''
+  if visualization_point(epochs, current_epoch):
+    reconstruction_info = 'last reconstruction: (min, max): (%f %f)' % (
+    np.min(reconstructions[-1]),
+    np.max(reconstructions[-1]))
+  epoch_past_info = '' if epochs_past is None else '+%d' % epochs_past
+  info_string = 'Accuracy after %2d/%d%s epoch(s): %.2f; %s' % (
+    current_epoch + 1,
+    epochs,
+    epoch_past_info,
+    accuracy,
+    reconstruction_info)
+  ut.print_time(info_string)
+
+
+def process_in_batches(session, placeholders, op, set):
+  feed = zip(xrange(EPOCH_SIZE), pt.train.feed_numpy(BATCH_SIZE, set, set))
+  result_batches = [session.run([op], dict(zip(placeholders, data)))[0] for _, data in feed]
+  encoding = np.vstack(result_batches)
+  return encoding
+
 visualization_substeps = 10
 
 
-def main(_=None,
-         weight_init=None,
-         activation=act.sigmoid,
-         epochs_to_train=10,
-         learning_rate=0.0004,
-         source_folder=FLAGS.input_folder,
-         enc=encoder_2,
-         dec=decoder_2,
-         optimizer=tf.train.AdamOptimizer):
+def visualization_point(epochs_to_train, current_epoch):
+  intermidiate_point = current_epoch % np.ceil(epochs_to_train / float(visualization_substeps)) == 0
+  is_last_step = current_epoch + 1 == epochs_to_train
+  return intermidiate_point or is_last_step
+
+
+def train(_=None,
+          weight_init=None,
+          activation=act.sigmoid,
+          epochs_to_train=10,
+          learning_rate=0.0004,
+          source_folder=FLAGS.input_folder,
+          enc=encoder_2,
+          dec=decoder_2,
+          optimizer=tf.train.AdamOptimizer):
   tf.reset_default_graph()
 
-  global IMAGE_SHAPE
-  accuracy_by_epoch = []
-  epoch_reconstruction = []
-  IMAGE_SHAPE = inp.get_image_shape(source_folder)
-  input_name = FLAGS.input_folder.split('/')[-3]
+  accuracy_by_epoch, epoch_reconstruction = [], []
   meta = {'suf': 'doom_bs', 'act': activation.func, 'lr': learning_rate,
           'init': weight_init, 'bs': BATCH_SIZE, 'h': get_layer_info(), 'opt': optimizer,
-          'inp': input_name}
+          'inp': inp.get_input_name(FLAGS.input_folder)}
   ut.configure_folders(FLAGS, meta)
 
+  train_set, test_set, visual_set = fetch_datasets(activation, source_folder)
   input_placeholder = tf.placeholder(tf.float32, get_batch_shape())
   output_placeholder = tf.placeholder(tf.float32, get_batch_shape())
-
-  train_data, test_data, visualization_data = \
-    fetch_datasets(activation.min, activation.max, source_folder)
-  assert_model(input_placeholder, output_placeholder, test_data, train_data, visualization_data)
-
-  with pt.defaults_scope(activation_fn=activation.func,
-                         # batch_normalize=True,
-                         # learned_moments_update_rate=0.0003,
-                         # variance_epsilon=0.001,
-                         # scale_after_normalization=True
-                         ):
+  placeholders = (input_placeholder, output_placeholder)
+  with pt.defaults_scope(activation_fn=activation.func):
     with pt.defaults_scope(phase=pt.Phase.train):
       with tf.variable_scope("model"):
         encode_op = enc(input_placeholder)
         output_tensor = dec(encode_op, weight_init=weight_init)
 
   pretty_loss = square_loss(output_tensor, output_placeholder)
-  # pretty_loss = square_loss(output_tensor, output_placeholder)
   optimizer = optimizer(learning_rate=learning_rate)
   train = pt.apply_optimizer(optimizer, losses=[pretty_loss])
   init = tf.initialize_all_variables()
@@ -190,86 +201,62 @@ def main(_=None,
 
     if FLAGS.load_state:
       runner.load_from_checkpoint(sess)
-      epochs_past = int(bookkeeper.global_step().eval() / EPOCH_SIZE)
+      epochs_past = get_past_epochs()
       ut.print_info('Checkpoint restore requested. previous epoch: %d' % epochs_past, color=31)
 
-    for train_epoch in xrange(epochs_to_train):
-      epoch_info = ''
-
-      if train_epoch % np.ceil(epochs_to_train / float(visualization_substeps)) == 0 or train_epoch + 1 == epochs_to_train:
-        reconstruct, loss_value = sess.run([output_tensor, pretty_loss],
-                                           {input_placeholder: visualization_data,
-                                            output_placeholder: visualization_data})
-        epoch_reconstruction.append(reconstruct)
-        epoch_info += 'epoch:%d (min, max): (%f %f)' % \
-                      (train_epoch, np.min(reconstruct), np.max(reconstruct))
+    for current_epoch in xrange(epochs_to_train):
+      if visualization_point(epochs_to_train, current_epoch):
+        epoch_reconstruction.append(process_in_batches(sess, placeholders, output_tensor, visual_set))
 
       runner.train_model(
         train,
         pretty_loss,
         EPOCH_SIZE,
-        feed_vars=(input_placeholder, output_placeholder),
-        feed_data=pt.train.feed_numpy(BATCH_SIZE, train_data, train_data),
-        print_every=None
-      )
+        feed_vars=placeholders,
+        feed_data=pt.train.feed_numpy(BATCH_SIZE, train_set, train_set),
+        print_every=None)
 
       accuracy = np.sqrt(runner.evaluate_model(
         pretty_loss,
         TEST_SIZE,
-        feed_vars=(input_placeholder, output_placeholder),
-        feed_data=pt.train.feed_numpy(BATCH_SIZE, test_data, test_data)))
+        feed_vars=placeholders,
+        feed_data=pt.train.feed_numpy(BATCH_SIZE, test_set, test_set)))
 
-      print_epoch_info(accuracy, train_epoch, epoch_info, epochs_to_train, epochs_past)
+      print_epoch_info(accuracy, current_epoch, epoch_reconstruction, epochs_to_train, epochs_past)
       accuracy_by_epoch.append(accuracy)
 
-      if train_epoch + 1 == epochs_to_train or (train_epoch + 1) % FLAGS.save_every == 0:
-        feed = zip(xrange(EPOCH_SIZE), pt.train.feed_numpy(BATCH_SIZE, train_data, train_data))
-        encode_batch = lambda data: \
-          sess.run([encode_op], dict(zip((input_placeholder, output_placeholder), data)))[0]
-        result_batches = [encode_batch(data) for _, data in feed]
-        encoding = np.vstack(result_batches)
+      if current_epoch + 1 == epochs_to_train or (current_epoch + 1) % FLAGS.save_every == 0:
+        encoding = process_in_batches(sess, placeholders, encode_op, train_set)
         checkpoint(runner, sess, encoding, accuracy_by_epoch[-1])
 
     meta['acu'] = int(np.min(accuracy_by_epoch))
-    meta['e'] = int(bookkeeper.global_step().eval() / EPOCH_SIZE)
-    ut.reconstruct_images_epochs(np.asarray(epoch_reconstruction),
-                                 visualization_data,
-                                 save_params=meta,
-                                 img_shape=IMAGE_SHAPE)
+    meta['e'] = get_past_epochs()
+    ut.reconstruct_images_epochs(np.asarray(epoch_reconstruction), visual_set,
+                                 save_params=meta, img_shape=IMAGE_SHAPE)
 
   ut.print_time('Best Quality: %f for %s' % (np.min(accuracy_by_epoch), ut.to_file_name(meta)))
   return meta, accuracy_by_epoch
 
 
-def print_epoch_info(accuracy, epoch, epoch_info, epochs, epochs_past):
-  previous_epoch_info = '' if epochs_past is None else '+%d' % epochs_past
-  ut.print_time('Accuracy after %2d/%d%s epoch %.2f; %s'
-                % (epoch + 1,
-                   epochs,
-                   previous_epoch_info,
-                   accuracy,
-                   epoch_info)
-                )
-
-
-def search_learning_rate(lrs=[0.01, 0.003, 0.001, 0.0004, 0.0001, 0.00003, 0.00001],
+def search_learning_rate(lrs=[0.003, 0.001, 0.0004, 0.0001, 0.00003, 0.00001],
                          enc=encoder_2, dec=decoder_2, epochs=1000):
-  result_best, arg_best = None, None
-  result_summary = []
-  result_list = []
+  best_result, best_args = None, None
+  result_summary, result_list = [], []
+
   for lr in lrs:
-    meta, accuracy_by_epoch = main(learning_rate=lr, epochs_to_train=epochs, enc=enc, dec=dec)
+    meta, accuracy_by_epoch = train(learning_rate=lr, epochs_to_train=epochs, enc=enc, dec=dec)
     result_list.append((ut.to_file_name(meta), accuracy_by_epoch))
     best_accuracy = np.min(accuracy_by_epoch)
     result_summary.append('\n\r lr:%2.5f \tq:%.2f' % (lr, best_accuracy))
-    if result_best is None or result_best > best_accuracy:
-      result_best = best_accuracy
-      arg_best = lr
-  meta = {'suf': 'grid_doom_bs', 'e': epochs, 'lrs': lrs, 'enc': enc, 'dec': dec, 'acu': result_best,
+    if best_result is None or best_result > best_accuracy:
+      best_result = best_accuracy
+      best_args = lr
+
+  meta = {'suf': 'grid_doom_bs', 'e': epochs, 'lrs': lrs, 'enc': enc, 'dec': dec, 'acu': best_result,
           'bs': BATCH_SIZE, 'h': get_layer_info()}
   ut.plot_epoch_progress(meta, result_list)
   print(''.join(result_summary))
-  ut.print_info('BEST Q: %d IS ACHIEVED FOR LR: %f' % (result_best, arg_best), 36)
+  ut.print_info('BEST Q: %d IS ACHIEVED FOR LR: %f' % (best_result, best_args), 36)
 
 
 def configure_for_cluster():
@@ -277,16 +264,10 @@ def configure_for_cluster():
 
 
 def try_this():
-  # identity learning
   pass
 
 
 if __name__ == '__main__':
-  # search_learning_rate()
-  # search_learning_rate(lrs=[0.03, 0.001, 0.0001, 0.00001], enc=encoder_2, epochs=50)
   FLAGS.load_state = True
-  LAYER_NARROW = 4
-  for i in range(10):
-    main(learning_rate=0.0004, epochs_to_train=10000)
-  # for i in range(10):
-  #   search_learning_rate()
+  LAYER_NARROW = 5
+  train(learning_rate=0.0004, epochs_to_train=10)

@@ -69,10 +69,27 @@ def get_images(folder):
     return imgaes
 
 
+def rescale_ds(ds, min, max):
+  ut.print_info('rescale call: (min: %s, max: %s) %d' % (str(min), str(max), len(ds)))
+  if max is None:
+    return np.asarray(ds) - np.min(ds)
+  ds_min, ds_max = np.min(ds), np.max(ds)
+  ds_gap = ds_max - ds_min
+  scale_factor = (max - min) / ds_gap
+  ds = np.asarray(ds) * scale_factor
+  shift_factor = min - np.min(ds)
+  ds += shift_factor
+  return ds
+
+
 def _get_image_file_list(folder):
     images = [join(folder, f) for f in listdir(folder) if isfile(join(folder, f))]
     images = list(filter(lambda x: '.png' in x or '.jpg' in x, images))
     return images
+
+
+def get_input_name(input_folder):
+    return input_folder.split('/')[-3]
 
 
 def main():
@@ -86,3 +103,4 @@ def main():
     pyplt.imshow(inputs.generate_minibatch(7)[0])
     pyplt.show()
     # face = misc.imread('face.png')
+

@@ -60,19 +60,6 @@ def mnist_select_n_classes(train_images, train_labels, num_classes, min=None, sc
   return inputs, np.asarray(result_labels)
 
 
-def rescale_ds(ds, min, max):
-  print_info('rescale call: (min: %s, max: %s) %d' % (str(min), str(max), len(ds)))
-  if max is None:
-    return np.asarray(ds) - np.min(ds)
-  ds_min, ds_max = np.min(ds), np.max(ds)
-  ds_gap = ds_max - ds_min
-  scale_factor = (max - min) / ds_gap
-  ds = np.asarray(ds) * scale_factor
-  shift_factor = min - np.min(ds)
-  ds += shift_factor
-  return ds
-
-
 def _save_image(name='image', save_params=None, image=None):
   if save_params is not None and 'e' in save_params and save_params['e'] < EPOCH_THRESHOLD:
     print_info('IMAGE: output is not saved. epochs %d < %d' % (save_params['e'], EPOCH_THRESHOLD), color=31)
