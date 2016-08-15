@@ -14,8 +14,8 @@ tf.app.flags.DEFINE_string(
 FLAGS = tf.app.flags.FLAGS
 
 BATCH_SIZE = 40
-EPOCH_SIZE = 1000 // BATCH_SIZE
-TEST_SIZE = 200 // BATCH_SIZE
+_epoch_size = 1000 // BATCH_SIZE
+_test_size = 200 // BATCH_SIZE
 
 tf.app.flags.DEFINE_string('model', 'full',
                            'Choose one of the models, either full or conv')
@@ -80,13 +80,13 @@ def main(_=None):
             runner.train_model(
                 train_op,
                 result.loss,
-                EPOCH_SIZE,
+                _epoch_size,
                 feed_vars=(image_placeholder, labels_placeholder),
                 feed_data=pt.train.feed_numpy(BATCH_SIZE, train_images, train_labels),
                 print_every=100)
             classification_accuracy = runner.evaluate_model(
                 accuracy,
-                TEST_SIZE,
+                _test_size,
                 feed_vars=(image_placeholder, labels_placeholder),
                 feed_data=pt.train.feed_numpy(BATCH_SIZE, test_images, test_labels))
             print('Accuracy after %d epoch %g%%' % (

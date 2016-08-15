@@ -17,8 +17,8 @@ tf.app.flags.DEFINE_string(
 FLAGS = tf.app.flags.FLAGS
 
 BATCH_SIZE = 20
-EPOCH_SIZE = 60000 // BATCH_SIZE
-TEST_SIZE = 10000 // BATCH_SIZE
+_epoch_size = 60000 // BATCH_SIZE
+_test_size = 10000 // BATCH_SIZE
 NUM_CLASSES = 2
 INPUT_SIZE = 784
 HIDDEN_0_SIZE = 4

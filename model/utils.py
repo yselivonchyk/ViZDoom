@@ -6,6 +6,8 @@ import collections
 import tensorflow as tf
 import pickle
 from scipy import misc
+import model.tools.checkpoint_utils as ch_utils
+
 
 IMAGE_FOLDER = './img/'
 TEMP_FOLDER = './tmp/'
@@ -27,7 +29,8 @@ def _get_time_offset():
     _start_time = time
     return '\t\t'
   sec = (time - _start_time).total_seconds()
-  return '(+%d)\t' % sec
+  res = '(+%d)\t' % sec if sec < 60 else '(+%d:%d)\t' % (sec/60, sec%60)
+  return rest
 
 
 def print_time(string):
@@ -72,7 +75,6 @@ def _save_image(name='image', save_params=None, image=None):
 
   if image is not None:
     misc.imsave(name, arr=image, format='png')
-    #
     # plt.savefig(name, dpi=300, facecolor='w', edgecolor='w',
     #             orientation='portrait', papertype=None, format=None,
     #             transparent=False, bbox_inches='tight', pad_inches=0.1,
@@ -158,12 +160,13 @@ def reconstruct_images_epochs(epochs, original=None, save_params=None, img_shape
 
 
 def _abbreviate_string(value):
-  abbr = [letter for letter in value if letter.isupper()]
+  str_value = str(value)
+  abbr = [letter for letter in str_value if letter.isupper()]
   if len(abbr) > 1:
     return ''.join(abbr)
 
-  if len(value.split('_')) > 2:
-    parts = value.split('_')
+  if len(str_value.split('_')) > 2:
+    parts = str_value.split('_')
     letters = ''.join(x[0] for x in parts)
     return letters
   return value
@@ -172,10 +175,8 @@ def _abbreviate_string(value):
 def to_file_name(obj, folder=None, ext=None):
   name, postfix = '', ''
   od = collections.OrderedDict(sorted(obj.items()))
-
   for _, key in enumerate(od):
     value = obj[key]
-
     if value is None:
       value = 'na'
     #FUNC and OBJECTS
@@ -269,6 +270,23 @@ def configure_folders(FLAGS, meta):
   mkdir([TEMP_FOLDER, IMAGE_FOLDER, checkpoint_folder, log_folder])
   FLAGS.save_path = checkpoint_folder
   FLAGS.logdir = log_folder
+  return checkpoint_folder, log_folder
+
+
+def list_checkpoint_vars(folder):
+  f = ch_utils.list_variables(folder)
+  print('\n'.join(map(str, f)))
+
+
+def list_encodings(folder):
+  assert folder and os.path.exists(folder)
+  for root, dirs, files in os.walk(folder):
+    files = list(filter(lambda file: 'encodings' in file and '.txt' in file, files))
+    files.sort()
+    files = list(map(lambda file: os.path.join(root, file), files))
+    if not files or len(files) == 0:
+      print_info('Folder %s contains no embedding files' % folder)
+    return files
 
 
 if __name__ == '__main__':
