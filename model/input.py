@@ -59,14 +59,16 @@ def get_image_shape(folder):
     return image.shape
 
 
-def get_images(folder):
+def get_images(folder, at_most=None):
     files = _get_image_file_list(folder)
     files.sort()
-    imgaes = list(map(_embed_3_axis, map(misc.imread, files)))
+    if at_most:
+        files = files[0:at_most]
+    images = list(map(_embed_3_axis, map(misc.imread, files)))
     to_int = lambda s: int(s.split('/')[-1].split('.')[0][1:])
-    names = list(map(to_int, files))
-    ut.print_info('Found %d images: %s...' % (len(names), str(names[1:5])))
-    return imgaes
+    labels = list(map(to_int, files))
+    ut.print_info('Found %d images: %s...' % (len(labels), str(labels[1:5])))
+    return np.asarray(images), np.asarray(labels, dtype=np.uint32)
 
 
 def rescale_ds(ds, min, max):

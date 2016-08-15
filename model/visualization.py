@@ -28,17 +28,20 @@ def dimensionality_reduction(data, labels=None, colors=None, file_name=None):
   n_components, project_ops = [2, 3], []
 
   for _, n in enumerate(n_components):
-    project_ops.append(("TSNE N:%d" % n, TSNE(perplexity=30, n_components=n, init='pca', n_iter=1000)))
+    project_ops.append(("TSNE N:%d" % n, TSNE(perplexity=30, n_components=n, init='pca',
+                                              n_iter=2000)))
     # project_ops.append(("TSNE N:%d" % n, TSNE(perplexity=30, n_components=n, init='pca', n_iter=10000)))
     # project_ops.append(("TSNE N:%d" % n, TSNE(perplexity=30, n_components=n, n_iter=1000)))
-    # project_ops.append(("TSNE N:%d" % n, TSNE(perplexity=30, n_components=n, n_iter=10000)))
-    project_ops.append(('LLE N:%d' % n, mn.LocallyLinearEmbedding(4, n, eigen_solver='auto', method='standard')))
-    project_ops.append(('MDS euclidian N:%d' % n, mn.MDS(n, max_iter=500, n_init=1)))
-    project_ops.append(('MDS cosine N:%d' % n, mn.MDS(n, max_iter=500, n_init=1, dissimilarity='precomputed')))
+    project_ops.append(("TSNE N:%d" % n, TSNE(perplexity=5, n_components=n, n_iter=200)))
+    # project_ops.append(('LLE N:%d' % n, mn.LocallyLinearEmbedding(4, n, eigen_solver='auto', method='standard')))
+    project_ops.append(('MDS euclidian N:%d' % n, mn.MDS(n, max_iter=300, n_init=1)))
+    project_ops.append(('MDS cosine N:%d' % n, mn.MDS(n, max_iter=300, n_init=1,
+                                                      dissimilarity='precomputed')))
 
   fig = plt.figure()
   fig.set_size_inches(fig.get_size_inches()[0] * 2.5, fig.get_size_inches()[1] * 2.5)
   for i, (name, manifold) in enumerate(project_ops):
+    ut.print_time(name)
     is3d = 'N:3' in name
     try:
       if is3d:

@@ -30,7 +30,7 @@ def _get_time_offset():
     return '\t\t'
   sec = (time - _start_time).total_seconds()
   res = '(+%d)\t' % sec if sec < 60 else '(+%d:%d)\t' % (sec/60, sec%60)
-  return rest
+  return res
 
 
 def print_time(string):
@@ -88,21 +88,21 @@ def _show_picture(pic):
   plt.imshow(pic, cmap='Greys_r')
 
 
-def reconstruct_image(img, name='image', save_params=None):
-  img = (np.reshape(img, (28, 28)) * 255).astype(np.uint)
-  plt.imshow(img)
+# def reconstruct_image(img, name='image', save_params=None):
+#   img = (np.reshape(img, (28, 28)) * 255).astype(np.uint)
+#   plt.imshow(img)
 
 
-def reconstruct_images(input, output, name='recon'):
-  res = []
-  for _, arr_in in enumerate(input):
-    img_in = (np.reshape(arr_in, (28, 28)) * 256.0)
-    img_out = (np.reshape(output[_], (28, 28)) * 256.0)
-    res.append(np.concatenate((img_in, img_out)))
-  img = np.zeros((56, 28))
-  for i in res:
-    img = np.concatenate((img, i), axis=1)
-  plt.imshow(img, cmap='Greys_r')
+# def reconstruct_images(input, output, name='recon'):
+#   res = []
+#   for _, arr_in in enumerate(input):
+#     img_in = (np.reshape(arr_in, (28, 28)) * 256.0)
+#     img_out = (np.reshape(output[_], (28, 28)) * 256.0)
+#     res.append(np.concatenate((img_in, img_out)))
+#   img = np.zeros((56, 28))
+#   for i in res:
+#     img = np.concatenate((img, i), axis=1)
+#   plt.imshow(img, cmap='Greys_r')
 
 
 def concat_images(im1, im2, axis=0):
@@ -114,7 +114,6 @@ def concat_images(im1, im2, axis=0):
 def _reconstruct_picture_line(pictures, shape):
   line_picture = None
   for _, img in enumerate(pictures):
-    img = (img * 255).astype(np.uint8)
     if len(img.shape) == 1:
       img = (np.reshape(img, shape))
     if len(img.shape) == 3 and img.shape[2] == 1:
@@ -136,17 +135,21 @@ def reconstruct_images_epochs(epochs, original=None, save_params=None, img_shape
   full_picture = None
   img_shape = img_shape if img_shape is not None else _construct_img_shape(epochs[0][0])
 
+  print(original.dtype, epochs.dtype, np.max(original), np.max(epochs))
+
+  if original.dtype != np.uint8:
+    original = (original * 255).astype(np.uint8)
+  if epochs.dtype != np.uint8:
+    epochs = (epochs * 255).astype(np.uint8)
+
+  print(original.dtype, epochs.dtype, np.max(original), np.max(epochs))
+
   if original is not None and epochs is not None and len(epochs) >= 3:
     min_ref, max_ref = np.min(original), np.max(original)
     print_info('epoch avg: (original: %s) -> %s' % (
     str(np.mean(original)), str((np.mean(epochs[0]), np.mean(epochs[1]), np.mean(epochs[2])))))
     print_info('reconstruction char. in epochs (min, max)|original: (%f %f)|(%f %f)' % (
     np.min(epochs[1:]), np.max(epochs), min_ref, max_ref))
-
-    # epochs[epochs > max_ref] = max_ref
-    # epochs[epochs < min_ref] = min_ref
-    # epochs = (epochs - min_ref) / (max_ref - min_ref)
-    # original = (original - min_ref) / (max_ref - min_ref)
 
   if epochs is not None:
     for _, epoch in enumerate(epochs):
@@ -155,8 +158,45 @@ def reconstruct_images_epochs(epochs, original=None, save_params=None, img_shape
     # print('original shape', original[0].shape)
     full_picture = concat_images(full_picture, _reconstruct_picture_line(original, img_shape), axis=1)
 
+  print(full_picture.dtype, np.max(full_picture))
+
   _show_picture(full_picture)
   _save_image(save_params=save_params, image=full_picture)
+
+
+def print_side_by_side(*args):
+  lines, height, width, channels = args[0].shape
+  min = 0   #int(args[0].mean())
+  print(min)
+  print(lines, height)
+
+  stack = args[0]
+  if len(args) > 1:
+    for i in range(len(args) - 1):
+      stack = np.concatenate((stack, args[i+1]), axis=2)
+  # stack - array of lines of pictures (arr_0[0], arr_1[0], ...)
+  # concatenate lines in one picture (height = tile_h * #lines)
+  picture_lines = stack.reshape(lines*height, stack.shape[2], channels)
+  picture_lines = np.hstack((
+    picture_lines,
+    np.ones((lines*height, 2, channels), dtype=np.uint8)*min)) # pad 2 pixels
+
+  # slice/reshape to have better image proportions
+  column_size = int(np.ceil(np.sqrt(lines)))
+  picture = picture_lines[0:column_size*height, :, :]
+  for i in range(int(len(stack)/column_size)):
+    start, stop = column_size*height * (i+1), column_size*height * (i+2)
+    if start >= len(picture_lines):
+      break
+    if stop < len(picture_lines):
+      picture = np.hstack((picture, picture_lines[start:stop]))
+    else:
+      last_column = np.vstack((
+        picture_lines[start:],
+        np.ones((stop-len(picture_lines), picture_lines.shape[1], channels), dtype=np.uint8)*min ))
+      picture = np.hstack((picture, last_column))
+  _show_picture(picture)
+  plt.show()
 
 
 def _abbreviate_string(value):

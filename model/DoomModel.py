@@ -28,7 +28,7 @@ tf.app.flags.DEFINE_integer('save_every', 20, 'Save model state every INT epochs
 tf.app.flags.DEFINE_integer('batch_size', 20, 'Batch size')
 
 tf.app.flags.DEFINE_float('learning_rate', 0.0004, 'Create visualization of ')
-tf.app.flags.DEFINE_string('input_folder', '../data/tmp/circle_basic_delay_4/img/', 'path to the '
+tf.app.flags.DEFINE_string('input_path', '../data/tmp/circle_basic_delay_4/img/', 'path to the '
                                                                                 'source folder')
 tf.app.flags.DEFINE_string('load_from_checkpoint', None, 'where to save logs.')
 
@@ -128,7 +128,7 @@ class DoomModel:
     meta['bs'] = FLAGS.batch_size
     meta['h'] = self.get_layer_info()
     meta['opt'] = self._optimizer
-    meta['inp'] = inp.get_input_name(FLAGS.input_folder)
+    meta['inp'] = inp.get_input_name(FLAGS.input_path)
     return meta
 
   def save_meta(self):
@@ -136,7 +136,7 @@ class DoomModel:
     ut.configure_folders(FLAGS, meta)
     meta['act'] = str(meta['act']).split(' ')[1]
     meta['opt'] = str(meta['opt']).split('.')[-1][:-2]
-    meta['input_folder'] = FLAGS.input_folder
+    meta['input_path'] = FLAGS.input_path
     path = os.path.join(FLAGS.save_path, 'meta.txt')
     json.dump(meta, open(path,'w'))
 
@@ -145,7 +145,7 @@ class DoomModel:
     meta = json.load(open(path, 'r'))
     FLAGS.save_path = save_path
     FLAGS.batch_size = meta['bs']
-    FLAGS.input_folder = meta['input_folder']
+    FLAGS.input_path = meta['input_path']
     FLAGS.learning_rate = meta['lr']
     self._weight_init = meta['init']
     self._activation = tf.train.AdadeltaOptimizer if 'Adam' in meta['opt'] else tf.train.AdadeltaOptimizer
@@ -172,6 +172,7 @@ class DoomModel:
           self._encdec_op = self._decoder_to_use(
             self._encode_op,
             weight_init=self._weight_init)
+          self._visualize_op = tf.cast(tf.mul(self._encdec_op, tf.constant(255.)), tf.uint8)
 
     self._loss = self.square_loss(self._encdec_op, self._output_placeholder)
     optimizer = self._optimizer(learning_rate=FLAGS.learning_rate)
@@ -186,14 +187,17 @@ class DoomModel:
     b_decoder = self.get_variable('model/fully_connected_2/bias')
     w_output = self.get_variable('model/fully_connected_3/weights')
     b_output = self.get_variable('model/fully_connected_3/bias')
-    image_shape = inp.get_image_shape(FLAGS.input_folder)
+    image_shape = inp.get_image_shape(FLAGS.input_path)
     self._encoding_placeholder = tf.placeholder(tf.float32, (1, self.layer_narrow))
-    self._decode_op = (
-      pt.wrap(self._encoding_placeholder)
-        .fully_connected(self.layer_decoder, init=w_decoder, bias_init=b_decoder)
-        .fully_connected(image_shape[0] * image_shape[1] * image_shape[2],
-                         init=w_output, bias_init=b_output)
-        .reshape((1, image_shape[0], image_shape[1], image_shape[2]))).tensor
+    with pt.defaults_scope(activation_fn=self._activation.func):
+      raw_decoding_op = (
+        pt.wrap(self._encoding_placeholder)
+          .fully_connected(self.layer_decoder, init=w_decoder, bias_init=b_decoder)
+          .fully_connected(image_shape[0] * image_shape[1] * image_shape[2],
+                           init=w_output, bias_init=b_output)
+          .reshape((1, image_shape[0], image_shape[1], image_shape[2]))).tensor
+      self._decode_op = tf.cast(tf.mul(raw_decoding_op, tf.constant(255.)), tf.uint8)
+
 
   def decode(self, data):
     assert data.shape[1] == self.layer_narrow
@@ -232,14 +236,14 @@ class DoomModel:
     return output_tensor.l2_regression(pt.wrap(output_actual).flatten())
 
   def fetch_datasets(self, activation_func_bounds):
-    original_data = np.asarray(inp.get_images(FLAGS.input_folder))
-
+    original_data, labels = inp.get_images(FLAGS.input_path)
+    print(original_data.shape, labels.shape)
     global _epoch_size, _test_size, _image_shape
-    _image_shape = inp.get_image_shape(FLAGS.input_folder)
+    _image_shape = inp.get_image_shape(FLAGS.input_path)
     _epoch_size = len(original_data) // FLAGS.batch_size
     _test_size = len(original_data) // FLAGS.batch_size
 
-    input_source, _ = data_utils.permute_data((original_data, np.zeros(len(original_data))))
+    input_source, _ = data_utils.permute_data((original_data, labels))
     input_source = inp.rescale_ds(input_source, activation_func_bounds.min, activation_func_bounds.max)
     return input_source, original_data, input_source[0:FLAGS.batch_size]
 
@@ -265,7 +269,7 @@ class DoomModel:
   def print_epoch_info(self, accuracy, current_epoch, reconstructions, epochs, epochs_past):
     reconstruction_info = ''
     if self.visualization_point(epochs, current_epoch):
-      reconstruction_info = 'last reconstruction: (min, max): (%f %f)' % (
+      reconstruction_info = 'last reconstruction: (min, max): (%3d %3d)' % (
       np.min(reconstructions[-1]),
       np.max(reconstructions[-1]))
     epoch_past_info = '' if epochs_past is None else '+%d' % epochs_past
@@ -289,7 +293,7 @@ class DoomModel:
     ut.configure_folders(FLAGS, meta)
     accuracy_by_epoch, epoch_reconstruction = [], []
 
-    train_set, test_set, visual_set = self.fetch_datasets(self._activation)
+    train_set, original_set, visual_set = self.fetch_datasets(self._activation)
     self.build_model()
     placeholders = (self._input_placeholder, self._output_placeholder)
     _runner = pt.train.Runner(save_path=FLAGS.save_path, logdir=FLAGS.logdir)
@@ -303,9 +307,11 @@ class DoomModel:
         ut.print_info('Checkpoint restore requested. previous epoch: %d' % epochs_past, color=31)
 
       for current_epoch in xrange(epochs_to_train):
+        train_set = data_utils.permute_data((train_set))
+
         if self.visualization_point(epochs_to_train, current_epoch):
           epoch_reconstruction.append(self.process_in_batches(
-            sess, (self._input_placeholder, self._output_placeholder), self._encdec_op, visual_set))
+            sess, (self._input_placeholder, self._output_placeholder), self._visualize_op, visual_set))
 
         _runner.train_model(
           self._train_op,
@@ -319,13 +325,13 @@ class DoomModel:
           self._loss,
           _test_size,
           feed_vars=placeholders,
-          feed_data=pt.train.feed_numpy(FLAGS.batch_size, test_set, test_set)))
+          feed_data=pt.train.feed_numpy(FLAGS.batch_size, original_set, original_set)))
 
         self.print_epoch_info(accuracy, current_epoch, epoch_reconstruction, epochs_to_train, epochs_past)
         accuracy_by_epoch.append(accuracy)
 
         if (current_epoch + 1 == epochs_to_train) or ((current_epoch + 1) % FLAGS.save_every) == 0:
-          encoding = self.process_in_batches(sess, placeholders, self._encode_op, train_set)
+          encoding = self.process_in_batches(sess, placeholders, self._encode_op, original_set)
           self.checkpoint(_runner, sess, encoding, accuracy_by_epoch[-1])
 
       meta['acu'] = int(np.min(accuracy_by_epoch))
@@ -337,38 +343,7 @@ class DoomModel:
     return meta, accuracy_by_epoch
 
 
-def search_learning_rate(lrs=[0.003, 0.001, 0.0004, 0.0001, 0.00003, 0.00001],
-                         epochs=200):
-  best_result, best_args = None, None
-  result_summary, result_list = [], []
-
-  for lr in lrs:
-    FLAGS.learning_rate = lr
-    model = DoomModel()
-    meta, accuracy_by_epoch = model.train(epochs)
-    result_list.append((ut.to_file_name(meta), accuracy_by_epoch))
-    best_accuracy = np.min(accuracy_by_epoch)
-    result_summary.append('\n\r lr:%2.5f \tq:%.2f' % (lr, best_accuracy))
-    if best_result is None or best_result > best_accuracy:
-      best_result = best_accuracy
-      best_args = lr
-
-  meta = {'suf': 'grid_doom_bs', 'e': epochs, 'lrs': lrs, 'acu': best_result,
-          'bs': FLAGS.batch_size, 'h': model.get_layer_info()}
-  ut.plot_epoch_progress(meta, result_list)
-  print(''.join(result_summary))
-  ut.print_info('BEST Q: %d IS ACHIEVED FOR LR: %f' % (best_result, best_args), 36)
-
 if __name__ == '__main__':
   FLAGS.load_from_checkpoint = './tmp/doom_bs__act|sigmoid__bs|20__h|500|5|500__init|na__inp|cbd4__lr|0.0004__opt|AO'
   model = DoomModel()
-  # model.train(5)
-
-  print(FLAGS.save_path)
-  files = ut.list_encodings(FLAGS.save_path)
-  last_encoding = files[-1]
-  data = np.loadtxt(last_encoding)
-  reconstructions = model.decode(data)
-  print(data.shape)
-  print(reconstructions.shape)
-  print(reconstructions.nbytes)
+  model.train(5)

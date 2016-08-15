@@ -18,6 +18,7 @@ def _get_latest_file(dir="./visualizations/"):
 
 if __name__ == '__main__':
   latest_file = _get_latest_file()
+  print(latest_file)
   data = np.loadtxt(latest_file)
   vis.visualize_encoding(data)
           #
