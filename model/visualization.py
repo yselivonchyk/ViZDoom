@@ -41,7 +41,7 @@ def dimensionality_reduction(data, labels=None, colors=None, file_name=None):
   fig = plt.figure()
   fig.set_size_inches(fig.get_size_inches()[0] * 2.5, fig.get_size_inches()[1] * 2.5)
   for i, (name, manifold) in enumerate(project_ops):
-    ut.print_time(name)
+    # ut.print_time(name)
     is3d = 'N:3' in name
     try:
       if is3d:
@@ -192,7 +192,6 @@ def rerun_embeddings():
 if __name__ == '__main__':
   # visualize_available_data()
   # rerun_embeddings()
-
   dec = 123654
   hex = "%06x" % dec
   data = np.random.rand(100, 8)

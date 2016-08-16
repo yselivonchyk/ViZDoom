@@ -8,7 +8,7 @@ FLAGS = tf.app.flags.FLAGS
 
 
 def search_learning_rate(lrs=[0.003, 0.001, 0.0004, 0.0001, 0.00003, 0.00001],
-                         epochs=20):
+                         epochs=100):
   best_result, best_args = None, None
   result_summary, result_list = [], []
 
@@ -72,4 +72,5 @@ def print_reconstructions_along_with_originals():
 
 
 if __name__ == '__main__':
-    print_reconstructions_along_with_originals()
+    # print_reconstructions_along_with_originals()
+  search_learning_rate()

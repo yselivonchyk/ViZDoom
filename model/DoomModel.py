@@ -10,7 +10,7 @@ import json, os, re
 import numpy as np
 import utils as ut
 import input as inp
-import model.tools.checkpoint_utils as ch_utils
+import tools.checkpoint_utils as ch_utils
 import activation_functions as act
 import visualization as vis
 import prettytensor as pt
@@ -24,12 +24,14 @@ tf.app.flags.DEFINE_boolean('visualize', True, 'Create visualization of ')
 tf.app.flags.DEFINE_integer('vis_substeps', 10, 'Use INT intermediate images')
 
 tf.app.flags.DEFINE_boolean('load_state', True, 'Create visualization of ')
-tf.app.flags.DEFINE_integer('save_every', 20, 'Save model state every INT epochs')
-tf.app.flags.DEFINE_integer('batch_size', 20, 'Batch size')
+tf.app.flags.DEFINE_integer('save_every', 50, 'Save model state every INT epochs')
+tf.app.flags.DEFINE_integer('batch_size', 30, 'Batch size')
 
 tf.app.flags.DEFINE_float('learning_rate', 0.0004, 'Create visualization of ')
 tf.app.flags.DEFINE_string('input_path', '../data/tmp/circle_basic_delay_4/img/', 'path to the '
                                                                                 'source folder')
+tf.app.flags.DEFINE_integer('series_length', 3, 'Data is permuted in series of INT consecutive inputs')
+
 tf.app.flags.DEFINE_string('load_from_checkpoint', None, 'where to save logs.')
 
 
@@ -198,7 +200,6 @@ class DoomModel:
           .reshape((1, image_shape[0], image_shape[1], image_shape[2]))).tensor
       self._decode_op = tf.cast(tf.mul(raw_decoding_op, tf.constant(255.)), tf.uint8)
 
-
   def decode(self, data):
     assert data.shape[1] == self.layer_narrow
 
@@ -213,7 +214,6 @@ class DoomModel:
         data,
         batch_size=1)
       return results
-
 
   def get_variable(self, name):
     assert FLAGS.load_from_checkpoint
@@ -237,15 +237,16 @@ class DoomModel:
 
   def fetch_datasets(self, activation_func_bounds):
     original_data, labels = inp.get_images(FLAGS.input_path)
-    print(original_data.shape, labels.shape)
+    original_data = inp.rescale_ds(original_data, activation_func_bounds.min, activation_func_bounds.max)
+
+    # print(original_data.shape, labels.shape)
     global _epoch_size, _test_size, _image_shape
     _image_shape = inp.get_image_shape(FLAGS.input_path)
     _epoch_size = len(original_data) // FLAGS.batch_size
     _test_size = len(original_data) // FLAGS.batch_size
 
-    input_source, _ = data_utils.permute_data((original_data, labels))
-    input_source = inp.rescale_ds(input_source, activation_func_bounds.min, activation_func_bounds.max)
-    return input_source, original_data, input_source[0:FLAGS.batch_size]
+    visual_set, _ = data_utils.permute_data((original_data, labels))
+    return original_data, visual_set[0:FLAGS.batch_size]
 
   def get_batch_shape(self):
     if len(_image_shape) > 2:
@@ -293,7 +294,7 @@ class DoomModel:
     ut.configure_folders(FLAGS, meta)
     accuracy_by_epoch, epoch_reconstruction = [], []
 
-    train_set, original_set, visual_set = self.fetch_datasets(self._activation)
+    original_set, visual_set = self.fetch_datasets(self._activation)
     self.build_model()
     placeholders = (self._input_placeholder, self._output_placeholder)
     _runner = pt.train.Runner(save_path=FLAGS.save_path, logdir=FLAGS.logdir)
@@ -307,7 +308,7 @@ class DoomModel:
         ut.print_info('Checkpoint restore requested. previous epoch: %d' % epochs_past, color=31)
 
       for current_epoch in xrange(epochs_to_train):
-        train_set = data_utils.permute_data((train_set))
+        train_set = inp.permute_array_in_series(original_set, FLAGS.series_length)
 
         if self.visualization_point(epochs_to_train, current_epoch):
           epoch_reconstruction.append(self.process_in_batches(
@@ -321,13 +322,14 @@ class DoomModel:
           feed_data=pt.train.feed_numpy(FLAGS.batch_size, train_set, train_set),
           print_every=None)
 
-        accuracy = np.sqrt(_runner.evaluate_model(
+        accuracy = _runner.evaluate_model(
           self._loss,
           _test_size,
           feed_vars=placeholders,
-          feed_data=pt.train.feed_numpy(FLAGS.batch_size, original_set, original_set)))
+          feed_data=pt.train.feed_numpy(FLAGS.batch_size, original_set, original_set))
 
-        self.print_epoch_info(accuracy, current_epoch, epoch_reconstruction, epochs_to_train, epochs_past)
+        self.print_epoch_info(accuracy, current_epoch, epoch_reconstruction,
+                              epochs_to_train, epochs_past)
         accuracy_by_epoch.append(accuracy)
 
         if (current_epoch + 1 == epochs_to_train) or ((current_epoch + 1) % FLAGS.save_every) == 0:
@@ -344,6 +346,6 @@ class DoomModel:
 
 
 if __name__ == '__main__':
-  FLAGS.load_from_checkpoint = './tmp/doom_bs__act|sigmoid__bs|20__h|500|5|500__init|na__inp|cbd4__lr|0.0004__opt|AO'
+  # FLAGS.load_from_checkpoint = './tmp/doom_bs__act|sigmoid__bs|20__h|500|5|500__init|na__inp|cbd4__lr|0.0004__opt|AO'
   model = DoomModel()
   model.train(5)

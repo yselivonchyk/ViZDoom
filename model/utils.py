@@ -6,7 +6,7 @@ import collections
 import tensorflow as tf
 import pickle
 from scipy import misc
-import model.tools.checkpoint_utils as ch_utils
+import tools.checkpoint_utils as ch_utils
 
 
 IMAGE_FOLDER = './img/'
@@ -29,7 +29,7 @@ def _get_time_offset():
     _start_time = time
     return '\t\t'
   sec = (time - _start_time).total_seconds()
-  res = '(+%d)\t' % sec if sec < 60 else '(+%d:%d)\t' % (sec/60, sec%60)
+  res = '(+%d)\t' % sec if sec < 60 else '(+%d:%02d)\t' % (sec/60, sec%60)
   return res
 
 
