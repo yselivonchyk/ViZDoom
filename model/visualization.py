@@ -27,8 +27,12 @@ def scatter(plot, data, is3d, colors):
 def print_data_only(data, file_name):
   fig = plt.figure()
   fig.set_size_inches(fig.get_size_inches()[0] * 2, fig.get_size_inches()[1] * 1)
-  visualize_data_same(data, grid=(2, 4), places=np.arange(1, 5))
-  visualize_data_same(data, grid=(2, 4), places=np.arange(5, 9), dims_as_colors=True)
+
+  colors = np.repeat(np.arange(0, 360), int(len(data)/360)+1)[0:len(data)]
+  colors = colors[0:len(data)]
+  color_map = plt.cm.Spectral
+  subplot = plt.subplot(111, projection='3d')
+  subplot.scatter(data[:, 0], data[:, 1], data[:, 2], c=colors, cmap=color_map)
   save_fig(file_name)
 
 
@@ -168,9 +172,6 @@ def visualize_encoding(encodings, folder=None, meta={}):
     meta['postfix'] = 'pca'
     file_path = ut.to_file_name(meta, folder, 'png')
   dimensionality_reduction(encodings, file_name=file_path)
-  # meta['postfix']= 'dat'
-  # data_file = ut.to_file_name(meta, folder, 'png')
-  # visualize_data(encodings, file_name=data_file)
 
 
 def visualize_available_data():
@@ -219,6 +220,8 @@ def rerun_embeddings():
 
 
 if __name__ == '__main__':
+  print_data_only(np.random.rand(10, 3), None)
+  exit(0)
   # visualize_available_data()
   # rerun_embeddings()
   dec = 123654

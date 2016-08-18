@@ -3,11 +3,11 @@ import numpy as np
 import utils as ut
 import input
 import DoomModel as dm
-
+import pickle
 FLAGS = tf.app.flags.FLAGS
 
 
-def search_learning_rate(lrs=[0.003, 0.001, 0.0004, 0.0001, 0.00003, 0.00001],
+def search_learning_rate(lrs=[0.001, 0.0004, 0.0001, 0.00003, 0.00001],
                          epochs=100):
   best_result, best_args = None, None
   result_summary, result_list = [], []
@@ -23,11 +23,38 @@ def search_learning_rate(lrs=[0.003, 0.001, 0.0004, 0.0001, 0.00003, 0.00001],
       best_result = best_accuracy
       best_args = lr
 
-  meta = {'suf': 'grid_doom_bs', 'e': epochs, 'lrs': lrs, 'acu': best_result,
+  meta = {'suf': 'grid_lr_bs', 'e': epochs, 'lrs': lrs, 'acu': best_result,
           'bs': FLAGS.batch_size, 'h': model.get_layer_info()}
+  pickle.dump(result_list, open('search_learning_rate%d.txt' % epochs, "wb"))
   ut.plot_epoch_progress(meta, result_list)
   print(''.join(result_summary))
   ut.print_info('BEST Q: %d IS ACHIEVED FOR LR: %f' % (best_result, best_args), 36)
+
+
+def search_batch_size(bss=[20, 50, 100], strides=[2, 4, 7], epochs=100):
+  best_result, best_args = None, None
+  result_summary, result_list = [], []
+
+  print(bss)
+  for bs in bss:
+    for stride in strides:
+      FLAGS.batch_size = bs
+      FLAGS.series_length = stride
+      model = dm.DoomModel()
+      meta, accuracy_by_epoch = model.train(epochs * int(bs / bss[0]))
+      result_list.append((ut.to_file_name(meta), accuracy_by_epoch))
+      best_accuracy = np.min(accuracy_by_epoch)
+      result_summary.append('\n\r bs:%d \tst:%d \tq:%.2f' % (bs, stride, best_accuracy))
+      if best_result is None or best_result > best_accuracy:
+        best_result = best_accuracy
+        best_args = (bs, stride)
+
+  meta = {'suf': 'grid_batch_bs', 'e': epochs, 'acu': best_result, 'ser': stride,
+          'bs': FLAGS.batch_size, 'h': model.get_layer_info()}
+  pickle.dump(result_list, open('search_batch_size%d.txt' % epochs, "wb"))
+  ut.plot_epoch_progress(meta, result_list)
+  print(''.join(result_summary))
+  ut.print_info('BEST Q: %d IS ACHIEVED FOR bs, st: %d %d' % (best_result, best_args[0], best_args[1]), 36)
 
 
 """
@@ -84,9 +111,9 @@ def search_layer_sizes(epochs=200):
   best_result, best_args = None, None
   result_summary, result_list = [], []
 
-  for _, h_encoder in enumerate[100, 500, 2000]:
-    for _, h_decoder in enumerate[100, 500, 2000]:
-      for _, h_narrow in enumerate[3, 6, 12]:
+  for _, h_encoder in enumerate([100, 500, 2000]):
+    for _, h_decoder in enumerate([100, 500, 2000]):
+      for _, h_narrow in enumerate([3, 6, 12]):
         model = dm.DoomModel()
         model.layer_encoder = h_encoder
         model.layer_narrow = h_narrow
@@ -101,10 +128,11 @@ def search_layer_sizes(epochs=200):
           best_result = best_accuracy
           best_args = layer_info
 
-  meta = {'suf': 'grid_doom_bs', 'e': epochs, 'acu': best_result,
+  meta = {'suf': 'grid_H_bs', 'e': epochs, 'acu': best_result,
           'bs': FLAGS.batch_size, 'h': model.get_layer_info()}
   print(''.join(result_summary))
-  ut.print_info('BEST Q: %d IS ACHIEVED FOR LR: %f' % (best_result, best_args), 36)
+  pickle.dump(result_list, open('search_layer_sizes%d.txt' % epochs, "wb"))
+  ut.print_info('BEST Q: %d IS ACHIEVED FOR H: %s' % (best_result, best_args), 36)
   ut.plot_epoch_progress(meta, result_list)
 
 
@@ -138,6 +166,25 @@ def print_reconstructions_along_with_originals():
   ut.print_side_by_side(original, reconstructions)
 
 
+def train_couple_8_models():
+  FLAGS.input_path = '../data/tmp/8_pos_delay_3/img/'
+
+  model = dm.DoomModel()
+  model.set_layer_sizes([500, 5, 500])
+  for i in range(10):
+    model.train(1000)
+
+  model = dm.DoomModel()
+  model.set_layer_sizes([1000, 10, 1000])
+  for i in range(20):
+    model.train(1000)
+
+
 if __name__ == '__main__':
     # print_reconstructions_along_with_originals()
-  search_layer_sizes_follow_up()
+  train_couple_8_models()
+  FLAGS.input_path = '../data/tmp/8_pos_delay_3/img/'
+  search_learning_rate(epochs=500)
+  search_layer_sizes(epochs=500)
+  search_batch_size(epochs=500)
+

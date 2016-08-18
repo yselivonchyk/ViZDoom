@@ -246,7 +246,7 @@ def to_file_name(obj, folder=None, ext=None):
       value = '|'.join(map(str, value))
 
     value = _abbreviate_string(value)
-    if len(value) > 9:
+    if len(value) > 10:
       print_info('truncating this: %s %s' % (key, value))
       value = value[0:9]
 
@@ -278,6 +278,7 @@ def print_model_info():
 
 
 def plot_epoch_progress(meta, data, interactive=False):
+  plt.figure()
   meta['suf'] = 'grid_search_lr'
   png_path = to_file_name(meta, IMAGE_FOLDER, 'png')
   backup_path = to_file_name(meta, IMAGE_FOLDER, 'txt')

@@ -14,6 +14,7 @@ import tools.checkpoint_utils as ch_utils
 import activation_functions as act
 import visualization as vis
 import prettytensor as pt
+import sys
 import prettytensor.bookkeeper as bookkeeper
 from prettytensor.tutorial import data_utils
 
@@ -25,10 +26,11 @@ tf.app.flags.DEFINE_integer('vis_substeps', 10, 'Use INT intermediate images')
 
 tf.app.flags.DEFINE_boolean('load_state', True, 'Create visualization of ')
 tf.app.flags.DEFINE_integer('save_every', 200, 'Save model state every INT epochs')
+tf.app.flags.DEFINE_integer('save_encodings_every', 50, 'Save model state every INT epochs')
 tf.app.flags.DEFINE_integer('batch_size', 30, 'Batch size')
 
 tf.app.flags.DEFINE_float('learning_rate', 0.0004, 'Create visualization of ')
-tf.app.flags.DEFINE_string('input_path', '../data/tmp/8_basic_delay/img/', 'path to the '
+tf.app.flags.DEFINE_string('input_path', '../data/tmp/8_pos_delay_3/img/', 'path to the '
                                                                                 'source folder')
 tf.app.flags.DEFINE_integer('series_length', 3, 'Data is permuted in series of INT consecutive inputs')
 
@@ -254,15 +256,23 @@ class DoomModel:
     else:
       return FLAGS.batch_size, _image_shape[0], _image_shape[1], [1]
 
-  def checkpoint(self, runner, sess, encoddings, accuracy):
+  def set_layer_sizes(self, h):
+    self.layer_encoder = h[0]
+    self.layer_narrow = h[1]
+    self.layer_decoder = h[2]
+
+  def save_encodings(self, encodings):
     epochs_past = int(bookkeeper.global_step().eval() / _epoch_size)
-    meta = {'suf': 'encodings', 'e': int(epochs_past), 'z_ac': accuracy}
+    meta = {'suf': 'encodings', 'e': int(epochs_past)}
+    projection_file = ut.to_file_name(meta, FLAGS.save_path, 'txt')
+    np.savetxt(projection_file, encodings)
+    vis.visualize_encoding(encodings, FLAGS.save_path, meta)
+
+  def checkpoint(self, runner, sess):
+    epochs_past = int(bookkeeper.global_step().eval() / _epoch_size)
     self.save_meta()
     runner._saver.max_to_keep = 2
     runner._saver.save(sess, FLAGS.save_path, int(epochs_past))
-    projection_file = ut.to_file_name(meta, FLAGS.save_path, 'txt')
-    np.savetxt(projection_file, encoddings)
-    vis.visualize_encoding(encoddings, FLAGS.save_path, meta)
 
   def get_past_epochs(self):
     return int(bookkeeper.global_step().eval() / _epoch_size)
@@ -291,6 +301,7 @@ class DoomModel:
 
   def train(self, epochs_to_train=5):
     meta = self.get_meta()
+    # return meta, np.random.rand(epochs_to_train)
     ut.configure_folders(FLAGS, meta)
     accuracy_by_epoch, epoch_reconstruction = [], []
 
@@ -333,9 +344,13 @@ class DoomModel:
                               epochs_to_train, epochs_past)
         accuracy_by_epoch.append(accuracy)
 
-        if (current_epoch + 1 == epochs_to_train) or ((current_epoch + 1) % FLAGS.save_every) == 0:
+        if(current_epoch + 1 == epochs_to_train) \
+            or ((current_epoch + 1) % FLAGS.save_encodings_every) == 0:
           encoding = self.process_in_batches(sess, placeholders, self._encode_op, original_set)
-          self.checkpoint(_runner, sess, encoding, accuracy_by_epoch[-1])
+          self.save_encodings(encoding)
+        if (current_epoch + 1 == epochs_to_train) \
+            or ((current_epoch + 1) % FLAGS.save_every) == 0:
+          self.checkpoint(_runner, sess)
 
       meta['acu'] = int(np.min(accuracy_by_epoch))
       meta['e'] = self.get_past_epochs()
@@ -346,12 +361,33 @@ class DoomModel:
     return meta, accuracy_by_epoch
 
 
+def parse_params():
+  params = {}
+  for i, param in enumerate(sys.argv):
+    if '-' in param:
+      params[param[1:]] = sys.argv[i+1]
+  print(params)
+  return params
+
+
 if __name__ == '__main__':
+  # params = parse_params()
+  # epochs = 10 if 'epochs' not in params else int(params['epochs'])
+  # print(epochs)
+  # exit(0)
   # FLAGS.load_from_checkpoint = './tmp/doom_bs__act|sigmoid__bs|20__h|500|5|500__init|na__inp|cbd4__lr|0.0004__opt|AO'
   model = DoomModel()
-  model.train(2000)
+  model.set_layer_sizes([500, 5, 500])
+  for i in range(10):
+    model.train(1000)
 
-  # model = DoomModel()
+  model = DoomModel()
+  model.set_layer_sizes([1000, 10, 1000])
+  for i in range(10):
+    model.train(1000)
+
+
+      # model = DoomModel()
   # model.layer_decoder = 101
   # model.layer_encoder = 501
   # model.layer_narrow = 3
