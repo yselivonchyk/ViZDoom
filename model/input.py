@@ -94,6 +94,10 @@ def get_input_name(input_folder):
   return input_folder.split('/')[-3]
 
 
+def permute_array(array, random_state=None):
+  return permute_data((array,))[0]
+
+
 def permute_data(arrays, random_state=None):
   """Permute multiple numpy arrays with the same order."""
   if any(len(a) != len(arrays[0]) for a in arrays):
@@ -106,6 +110,7 @@ def permute_data(arrays, random_state=None):
 
 def permute_array_in_series(array, series_length):
   return permute_data_in_series((array,), series_length)[0]
+
 
 def permute_data_in_series(arrays, series_length):
   shift_possibilities = len(arrays[0]) % series_length

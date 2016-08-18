@@ -24,11 +24,11 @@ tf.app.flags.DEFINE_boolean('visualize', True, 'Create visualization of ')
 tf.app.flags.DEFINE_integer('vis_substeps', 10, 'Use INT intermediate images')
 
 tf.app.flags.DEFINE_boolean('load_state', True, 'Create visualization of ')
-tf.app.flags.DEFINE_integer('save_every', 50, 'Save model state every INT epochs')
+tf.app.flags.DEFINE_integer('save_every', 200, 'Save model state every INT epochs')
 tf.app.flags.DEFINE_integer('batch_size', 30, 'Batch size')
 
 tf.app.flags.DEFINE_float('learning_rate', 0.0004, 'Create visualization of ')
-tf.app.flags.DEFINE_string('input_path', '../data/tmp/circle_basic_delay_4/img/', 'path to the '
+tf.app.flags.DEFINE_string('input_path', '../data/tmp/8_basic_delay/img/', 'path to the '
                                                                                 'source folder')
 tf.app.flags.DEFINE_integer('series_length', 3, 'Data is permuted in series of INT consecutive inputs')
 
@@ -42,9 +42,9 @@ class DoomModel:
   _epoch_size = None
   _test_size = None
 
-  layer_narrow = 5
+  layer_narrow = 3
   layer_encoder = 500
-  layer_decoder = 500
+  layer_decoder = 100
 
   _image_shape = None
   _batch_shape = None
@@ -308,6 +308,7 @@ class DoomModel:
         ut.print_info('Checkpoint restore requested. previous epoch: %d' % epochs_past, color=31)
 
       for current_epoch in xrange(epochs_to_train):
+        # train_set = inp.permute_data(original_set)
         train_set = inp.permute_array_in_series(original_set, FLAGS.series_length)
 
         if self.visualization_point(epochs_to_train, current_epoch):
@@ -348,4 +349,10 @@ class DoomModel:
 if __name__ == '__main__':
   # FLAGS.load_from_checkpoint = './tmp/doom_bs__act|sigmoid__bs|20__h|500|5|500__init|na__inp|cbd4__lr|0.0004__opt|AO'
   model = DoomModel()
-  model.train(5)
+  model.train(2000)
+
+  # model = DoomModel()
+  # model.layer_decoder = 101
+  # model.layer_encoder = 501
+  # model.layer_narrow = 3
+  # model.train(2000)

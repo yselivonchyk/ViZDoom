@@ -6,11 +6,15 @@ import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
 import os, sys
 import utils as ut
+import tensorflow as tf
+
 
 # Next line to silence pyflakes. This import is needed.
 Axes3D
 
 # colors = ['grey', 'red', 'magenta']
+
+FLAGS = tf.app.flags.FLAGS
 
 
 def scatter(plot, data, is3d, colors):
@@ -20,14 +24,39 @@ def scatter(plot, data, is3d, colors):
     plot.scatter(data[:, 0], data[:, 1], c=colors, cmap=plt.cm.Spectral)
 
 
+def print_data_only(data, file_name):
+  fig = plt.figure()
+  fig.set_size_inches(fig.get_size_inches()[0] * 2, fig.get_size_inches()[1] * 1)
+  visualize_data_same(data, grid=(2, 4), places=np.arange(1, 5))
+  visualize_data_same(data, grid=(2, 4), places=np.arange(5, 9), dims_as_colors=True)
+  save_fig(file_name)
+
+
+def create_gif_from_folder(folder):
+  # fig = plt.figure()
+  # gif_folder = os.path.join(FLAGS.save_path, 'gif')
+  # if not os.path.exists(gif_folder):
+  #   os.mkdir(gif_folder)
+  # epoch = file_name.split('_e|')[-1].split('_')[0]
+  # gif_path = os.path.join(gif_folder, epoch)
+  # subplot = plt.subplot(111, projection='3d')
+  # subplot.scatter(data[0], data[1], data[2], c=colors, cmap=color_map)
+  # save_fig(file_name)
+  pass
+
+
 def dimensionality_reduction(data, labels=None, colors=None, file_name=None):
-  if colors == None:
+  if data.shape[1] <= 3:
+    print_data_only(data, file_name)
+    return
+
+  if colors is None:
     # colors = np.squeeze(3 * np.pi * (np.random.rand(1, len(data)) - 0.5))
     colors = np.repeat(np.arange(0, 360), 5)[0:len(data)]
   grid = (4, 4)
-  n_components, project_ops = [2, 3], []
+  project_ops = []
 
-  for _, n in enumerate(n_components):
+  for _, n in enumerate([2, 3]):
     project_ops.append(("TSNE N:%d" % n, TSNE(perplexity=30, n_components=n, init='pca',
                                               n_iter=2000)))
     # project_ops.append(("TSNE N:%d" % n, TSNE(perplexity=30, n_components=n, init='pca', n_iter=10000)))

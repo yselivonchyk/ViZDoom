@@ -30,6 +30,56 @@ def search_learning_rate(lrs=[0.003, 0.001, 0.0004, 0.0001, 0.00003, 0.00001],
   ut.print_info('BEST Q: %d IS ACHIEVED FOR LR: %f' % (best_result, best_args), 36)
 
 
+"""
+h_e	h_n	h_d	q
+0100	03	0100	105.00
+0100	06	0100	105.93
+0100	12	0100	106.05
+0100	03	0500	105.73
+0100	06	0500	100.66
+0100	12	0500	105.31
+0100	03	2000	105.81
+0100	06	2000	106.00
+0100	12	2000	106.04
+0500	03	0100	100.30
+0500	06	0100	100.61
+0500	12	0100	095.50
+0500	03	0500	102.53
+0500	06	0500	099.28
+0500	12	0500	097.00
+0500	03	2000	106.50
+0500	06	2000	104.44
+0500	12	2000	096.58
+2000	03	0100	106.28
+2000	06	0100	104.38
+2000	12	0100	098.60
+2000	03	0500	118.14
+2000	06	0500	105.19
+2000	12	0500	096.39
+2000	03	2000	119.36
+2000	06	2000	108.37
+2000	12	2000	093.44
+
+h_n = 3
+h_e / h_d	100	500	2000
+100	  105	    105.73	105.81
+500	  100.3	  102.53	106.5
+2000	106.28	118.14	119.36
+
+h_n = 12
+h_e / h_d	100	500	2000
+100	  106.05	105.31	106.04
+500 	95.5	  97	    96.58
+2000	98.6	  96.39	   93.44
+
+h_n = 6
+h_e / h_d	100	500	2000
+100	  105.93	100.66	106
+500	  100.61	99.28	  104.44
+2000	104.38	105.19	108.37
+"""
+
+
 def search_layer_sizes(epochs=200):
   best_result, best_args = None, None
   result_summary, result_list = [], []
@@ -58,6 +108,23 @@ def search_layer_sizes(epochs=200):
   ut.plot_epoch_progress(meta, result_list)
 
 
+def search_layer_sizes_follow_up():
+  """train further 2 best models"""
+  FLAGS.save_every = 200
+  for i in range(4):
+    model = dm.DoomModel()
+    model.layer_encoder = 500
+    model.layer_narrow = 3
+    model.layer_decoder = 100
+    model.train(600)
+
+    model = dm.DoomModel()
+    model.layer_encoder = 500
+    model.layer_narrow = 12
+    model.layer_decoder = 500
+    model.train(600)
+
+
 def print_reconstructions_along_with_originals():
   FLAGS.load_from_checkpoint = './tmp/doom_bs__act|sigmoid__bs|20__h|500|5|500__init|na__inp|cbd4__lr|0.0004__opt|AO'
   model = dm.DoomModel()
@@ -73,4 +140,4 @@ def print_reconstructions_along_with_originals():
 
 if __name__ == '__main__':
     # print_reconstructions_along_with_originals()
-  search_learning_rate()
+  search_layer_sizes_follow_up()
