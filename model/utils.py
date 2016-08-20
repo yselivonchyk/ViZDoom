@@ -6,6 +6,7 @@ import collections
 import tensorflow as tf
 import pickle
 from scipy import misc
+import re
 import tools.checkpoint_utils as ch_utils
 
 
@@ -16,6 +17,8 @@ FLAGS = tf.app.flags.FLAGS
 
 _start_time = None
 
+
+# CONSOLE OPERATIONS
 
 def reset_start_time():
   global _start_time
@@ -63,6 +66,8 @@ def mnist_select_n_classes(train_images, train_labels, num_classes, min=None, sc
   return inputs, np.asarray(result_labels)
 
 
+# IMAGE OPERATIONS
+
 def _save_image(name='image', save_params=None, image=None):
   if save_params is not None and 'e' in save_params and save_params['e'] < EPOCH_THRESHOLD:
     print_info('IMAGE: output is not saved. epochs %d < %d' % (save_params['e'], EPOCH_THRESHOLD), color=31)
@@ -70,15 +75,10 @@ def _save_image(name='image', save_params=None, image=None):
 
   file_name = name if save_params is None else to_file_name(save_params)
   file_name += '.png'
-  # name = os.path.join(IMAGE_FOLDER, file_name)
   name = os.path.join(FLAGS.save_path, file_name)
 
   if image is not None:
     misc.imsave(name, arr=image, format='png')
-    # plt.savefig(name, dpi=300, facecolor='w', edgecolor='w',
-    #             orientation='portrait', papertype=None, format=None,
-    #             transparent=False, bbox_inches='tight', pad_inches=0.1,
-    #             frameon=None)
 
 
 def _show_picture(pic):
@@ -86,23 +86,6 @@ def _show_picture(pic):
   size = fig.get_size_inches()
   fig.set_size_inches(size[0], size[1] * 2, forward=True)
   plt.imshow(pic, cmap='Greys_r')
-
-
-# def reconstruct_image(img, name='image', save_params=None):
-#   img = (np.reshape(img, (28, 28)) * 255).astype(np.uint)
-#   plt.imshow(img)
-
-
-# def reconstruct_images(input, output, name='recon'):
-#   res = []
-#   for _, arr_in in enumerate(input):
-#     img_in = (np.reshape(arr_in, (28, 28)) * 256.0)
-#     img_out = (np.reshape(output[_], (28, 28)) * 256.0)
-#     res.append(np.concatenate((img_in, img_out)))
-#   img = np.zeros((56, 28))
-#   for i in res:
-#     img = np.concatenate((img, i), axis=1)
-#   plt.imshow(img, cmap='Greys_r')
 
 
 def concat_images(im1, im2, axis=0):
@@ -142,7 +125,7 @@ def reconstruct_images_epochs(epochs, original=None, save_params=None, img_shape
   if epochs.dtype != np.uint8:
     epochs = (epochs * 255).astype(np.uint8)
 
-  print(original.dtype, epochs.dtype, np.max(original), np.max(epochs))
+  print('image reconstruction: ', original.dtype, epochs.dtype, np.max(original), np.max(epochs))
 
   if original is not None and epochs is not None and len(epochs) >= 3:
     min_ref, max_ref = np.min(original), np.max(original)
@@ -155,49 +138,32 @@ def reconstruct_images_epochs(epochs, original=None, save_params=None, img_shape
     for _, epoch in enumerate(epochs):
       full_picture = concat_images(full_picture, _reconstruct_picture_line(epoch, img_shape), axis=1)
   if original is not None:
-    # print('original shape', original[0].shape)
     full_picture = concat_images(full_picture, _reconstruct_picture_line(original, img_shape), axis=1)
-
-  print(full_picture.dtype, np.max(full_picture))
 
   _show_picture(full_picture)
   _save_image(save_params=save_params, image=full_picture)
 
 
-def print_side_by_side(*args):
-  lines, height, width, channels = args[0].shape
-  min = 0   #int(args[0].mean())
-  print(min)
-  print(lines, height)
+def plot_epoch_progress(meta, data, interactive=False):
+  plt.figure()
+  backup_path = to_file_name(meta, IMAGE_FOLDER, 'txt')
+  png_path = to_file_name(meta, IMAGE_FOLDER, 'png')
+  meta['time'] = datetime.datetime.now()
+  pickle.dump((meta, data), open(backup_path, "wb"))
 
-  stack = args[0]
-  if len(args) > 1:
-    for i in range(len(args) - 1):
-      stack = np.concatenate((stack, args[i+1]), axis=2)
-  # stack - array of lines of pictures (arr_0[0], arr_1[0], ...)
-  # concatenate lines in one picture (height = tile_h * #lines)
-  picture_lines = stack.reshape(lines*height, stack.shape[2], channels)
-  picture_lines = np.hstack((
-    picture_lines,
-    np.ones((lines*height, 2, channels), dtype=np.uint8)*min)) # pad 2 pixels
+  x = np.arange(0, len(data[0][1])) + 1
+  for _, experiment in enumerate(data):
+    plt.semilogy(x, experiment[1], label=experiment[0], marker='.', linestyle='--')
+  plt.xlim([1, x[-1]])
+  plt.legend(loc='best', fancybox=True, framealpha=0.5, fontsize=8)
+  plt.savefig(png_path, dpi=300, facecolor='w', edgecolor='w',
+              transparent=False, bbox_inches='tight', pad_inches=0.1,
+              frameon=None)
+  if interactive:
+    plt.show()
 
-  # slice/reshape to have better image proportions
-  column_size = int(np.ceil(np.sqrt(lines)))
-  picture = picture_lines[0:column_size*height, :, :]
-  for i in range(int(len(stack)/column_size)):
-    start, stop = column_size*height * (i+1), column_size*height * (i+2)
-    if start >= len(picture_lines):
-      break
-    if stop < len(picture_lines):
-      picture = np.hstack((picture, picture_lines[start:stop]))
-    else:
-      last_column = np.vstack((
-        picture_lines[start:],
-        np.ones((stop-len(picture_lines), picture_lines.shape[1], channels), dtype=np.uint8)*min ))
-      picture = np.hstack((picture, last_column))
-  _show_picture(picture)
-  plt.show()
 
+# FILE name operation
 
 def _abbreviate_string(value):
   str_value = str(value)
@@ -212,7 +178,7 @@ def _abbreviate_string(value):
   return value
 
 
-def to_file_name(obj, folder=None, ext=None):
+def to_file_name(obj, folder=None, ext=None, append_timestamp=False):
   name, postfix = '', ''
   od = collections.OrderedDict(sorted(obj.items()))
   for _, key in enumerate(od):
@@ -262,38 +228,12 @@ def to_file_name(obj, folder=None, ext=None):
 
   name += postfix
 
-  if folder:
-    name = os.path.join(folder, name)
   if ext:
     name += '.' + ext
+  if folder:
+    name = os.path.join(folder, name)
+
   return name
-
-
-def print_model_info():
-  print()
-  for v in tf.get_collection(tf.GraphKeys.VARIABLES):
-    print(v.name, v.get_shape())
-  for v in tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES):
-    print(v.name, v.get_shape())
-
-
-def plot_epoch_progress(meta, data, interactive=False):
-  plt.figure()
-  meta['suf'] = 'grid_search_lr'
-  png_path = to_file_name(meta, IMAGE_FOLDER, 'png')
-  backup_path = to_file_name(meta, IMAGE_FOLDER, 'txt')
-  pickle.dump((meta, data), open(backup_path, "wb"))
-
-  x = np.arange(0, len(data[0][1])) + 1
-  for _, experiment in enumerate(data):
-    plt.semilogy(x, experiment[1], label=experiment[0], marker='.', linestyle='--')
-  plt.xlim([1, x[-1]])
-  plt.legend(loc='best', fancybox=True, framealpha=0.5, fontsize=8)
-  plt.savefig(png_path, dpi=300, facecolor='w', edgecolor='w',
-              transparent=False, bbox_inches='tight', pad_inches=0.1,
-              frameon=None)
-  if interactive:
-    plt.show()
 
 
 def mkdir(folders):
@@ -312,6 +252,32 @@ def configure_folders(FLAGS, meta):
   FLAGS.save_path = checkpoint_folder
   FLAGS.logdir = log_folder
   return checkpoint_folder, log_folder
+
+
+def get_latest_file(folder="./visualizations/", filter=None):
+  latest_file, latest_mod_time = None, None
+  for root, dirs, files in os.walk(folder):
+    # print(root, dirs, files)
+    if filter:
+      files = [x for x in files if re.match(filter, x)]
+    # print('\n\r'.join(files))
+    for file in files:
+      if '.txt' in file:
+        file_path = os.path.join(root, file)
+        modification_time = os.path.getmtime(file_path)
+        if not latest_mod_time or modification_time > latest_mod_time:
+          latest_mod_time = modification_time
+          latest_file = file_path
+  return latest_file
+
+
+# MISC
+
+def print_model_info():
+  for v in tf.get_collection(tf.GraphKeys.VARIABLES):
+    print(v.name, v.get_shape())
+  for v in tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES):
+    print(v.name, v.get_shape())
 
 
 def list_checkpoint_vars(folder):

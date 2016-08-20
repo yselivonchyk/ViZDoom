@@ -15,7 +15,7 @@ Axes3D
 # colors = ['grey', 'red', 'magenta']
 
 FLAGS = tf.app.flags.FLAGS
-
+COLOR_MAP = plt.cm.Spectral
 
 def scatter(plot, data, is3d, colors):
   if is3d:
@@ -28,11 +28,9 @@ def print_data_only(data, file_name):
   fig = plt.figure()
   fig.set_size_inches(fig.get_size_inches()[0] * 2, fig.get_size_inches()[1] * 1)
 
-  colors = np.repeat(np.arange(0, 360), int(len(data)/360)+1)[0:len(data)]
-  colors = colors[0:len(data)]
-  color_map = plt.cm.Spectral
+  colors = build_radial_colors(len(data))
   subplot = plt.subplot(111, projection='3d')
-  subplot.scatter(data[:, 0], data[:, 1], data[:, 2], c=colors, cmap=color_map)
+  subplot.scatter(data[:, 0], data[:, 1], data[:, 2], c=colors, cmap=COLOR_MAP)
   save_fig(file_name)
 
 
@@ -56,7 +54,7 @@ def dimensionality_reduction(data, labels=None, colors=None, file_name=None):
 
   if colors is None:
     # colors = np.squeeze(3 * np.pi * (np.random.rand(1, len(data)) - 0.5))
-    colors = np.repeat(np.arange(0, 360), 5)[0:len(data)]
+    colors = build_radial_colors(len(data))
   grid = (4, 4)
   project_ops = []
 
@@ -107,13 +105,8 @@ def save_fig(file_name):
 
 def visualize_data_same(data, grid, places, dims_as_colors=False):
   assert len(places) == 4
-  # colors = np.squeeze(3 * np.pi * (np.random.rand(1, len(data)) - 0.5))
-  colors = np.squeeze(3 * np.pi * (np.random.rand(1, 360) - 0.5))
-  colors = np.repeat(colors, 5)[0:len(data)]
-  # print(colors[0], colors.shape, colors)
-  # colors = np.repeat(np.arange(0, 360), 5)[0:len(data)]
-  color_map = plt.cm.Spectral
-  # color_map = plt.cm.seismic
+
+  colors = build_radial_colors(len(data))
   for i, dims in enumerate([[0, 1], [-1, -2], [0, 1, 2], [-1, -2, -3]]):
     points = np.transpose(data[:, dims])
     if dims_as_colors:
@@ -121,11 +114,29 @@ def visualize_data_same(data, grid, places, dims_as_colors=False):
 
     if len(dims) == 2:
       subplot = plt.subplot(grid[0], grid[1], places[i])
-      subplot.scatter(points[0], points[1], c=colors, cmap=color_map)
+      subplot.scatter(points[0], points[1], c=colors, cmap=COLOR_MAP)
     else:
       subplot = plt.subplot(grid[0], grid[1], places[i], projection='3d')
-      subplot.scatter(points[0], points[1], points[2], c=colors, cmap=color_map)
+      subplot.scatter(points[0], points[1], points[2], c=colors, cmap=COLOR_MAP)
     subplot.set_title('Data %s' % str(dims))
+
+
+def duplicate_array(array, repeats=None, total_length=None):
+  assert repeats is not None or total_length is not None
+
+  if repeats is None:
+    repeats = int(np.ceil(total_length/len(array)))
+  res = array.copy()
+  for i in range(repeats - 1):
+    res = np.concatenate((res, array))
+  return res if total_length is None else res[:total_length]
+
+
+def build_radial_colors(length):
+  colors = np.arange(0, 180)
+  colors = np.concatenate((colors, colors[::-1]))
+  colors = duplicate_array(colors, total_length=length)
+  return colors
 
 
 def data_to_colors(data, indexes=None):
@@ -139,7 +150,8 @@ def data_to_colors(data, indexes=None):
   elif shape[1] > 3:
     color_data = color_data[:, 0:3]
 
-  color_data *= 256
+  if np.max(color_data) <= 1:
+    color_data *= 256
   color_data = color_data.astype(np.int32)
   assert np.mean(color_data) <= 255
   color_data[color_data > 255] = 255
@@ -149,19 +161,6 @@ def data_to_colors(data, indexes=None):
   color_data = ["#%06x" % c for c in color_data]
   # print('color example', color_data[0])
   return color_data
-
-
-# def visualize_data(data, file_name=None):
-#   colors = np.squeeze(3 * np.pi * (np.random.rand(1, len(data)) - 0.5))
-#   subplot = plt.subplot(2, 2, 1)
-#   subplot.scatter(data[:, 0], data[:, 1], c=colors, cmap=plt.cm.Spectral)
-#   subplot = plt.subplot(2, 2, 2)
-#   subplot.scatter(data[:, -1], data[:, -2], c=colors, cmap=plt.cm.Spectral)
-#   subplot = plt.subplot(2, 2, 3, projection='3d')
-#   subplot.scatter(data[:, 1], data[:, 2], data[:, 3], c=colors, cmap=plt.cm.Spectral)
-#   subplot = plt.subplot(2, 2, 4, projection='3d')
-#   subplot.scatter(data[:, -1], data[:, -2], data[:, -3], c=colors, cmap=plt.cm.Spectral)
-#   save_fig(file_name)
 
 
 def visualize_encoding(encodings, folder=None, meta={}):
@@ -217,6 +216,75 @@ def rerun_embeddings():
           layer_sizes = list(map(int, layer_info.split('|')[1:]))
           print(learning_rate, layer_sizes)
           #
+
+
+def print_side_by_side(*args):
+  lines, height, width, channels = args[0].shape
+  min = 0   #int(args[0].mean())
+  print(min)
+  print(lines, height)
+
+  stack = args[0]
+  if len(args) > 1:
+    for i in range(len(args) - 1):
+      stack = np.concatenate((stack, args[i+1]), axis=2)
+  # stack - array of lines of pictures (arr_0[0], arr_1[0], ...)
+  # concatenate lines in one picture (height = tile_h * #lines)
+  picture_lines = stack.reshape(lines*height, stack.shape[2], channels)
+  picture_lines = np.hstack((
+    picture_lines,
+    np.ones((lines*height, 2, channels), dtype=np.uint8)*min)) # pad 2 pixels
+
+
+
+def stitch_images(*args):
+  """Recieves one or many arrays of pictures and stitches them into one picture"""
+  lines, height, width, channels = args[0].shape
+  min = 0   #int(args[0].mean())
+  print('stitch debug:', min, lines, height)
+
+  stack = args[0]
+  if len(args) > 1:
+    for i in range(len(args) - 1):
+      stack = np.concatenate((stack, args[i+1]), axis=2)
+  # stack - array of lines of pictures (arr_0[0], arr_1[0], ...)
+  # concatenate lines in one picture (height = tile_h * #lines)
+  picture_lines = stack.reshape(lines*height, stack.shape[2], channels)
+  picture_lines = np.hstack((
+    picture_lines,
+    np.ones((lines*height, 2, channels), dtype=np.uint8)*min)) # pad 2 pixels
+
+  # slice/reshape to have better image proportions
+  return picture_lines, height
+
+
+def reshape_images(column_picture, height, proportion=1):
+  """
+  proportion: vertical_size / horizontal size
+  """
+  lines = int(column_picture.shape[0] / height)
+  width = column_picture.shape[1]
+
+  column_size = int(np.ceil(np.sqrt(lines*proportion/height*width)))
+  count = int(column_picture.shape[0]/height)
+  _, _, channels = column_picture.shape
+
+  picture = column_picture[0:column_size*height, :, :]
+
+  for i in range(int(lines/column_size)):
+    start, stop = column_size*height * (i+1), column_size*height * (i+2)
+    if start >= len(column_picture):
+      break
+    if stop < len(column_picture):
+      picture = np.hstack((picture, column_picture[start:stop]))
+    else:
+      last_column = np.vstack((
+        column_picture[start:],
+        np.ones((stop-len(column_picture), column_picture.shape[1], column_picture.shape[2]),
+                dtype=np.uint8)))
+      picture = np.hstack((picture, last_column))
+
+  return picture
 
 
 if __name__ == '__main__':
