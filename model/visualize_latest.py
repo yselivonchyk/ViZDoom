@@ -14,6 +14,7 @@ Axes3D
 
 FLAGS = tf.app.flags.FLAGS
 
+
 def print_data(data, fig, subplot, is_3d=True):
   colors = np.arange(0, 180)
   colors = np.concatenate((colors, colors[::-1]))
@@ -71,28 +72,45 @@ class EncodingVisualizer:
       print(' '.join(map(lambda x: '%+.4f' % x, ar)))
     proj = proj[[0, 1, 3]]
     projected = np.matmul(self.data, proj)
-    colors = np.repeat(np.arange(0, 360), int(len(data) / 360) + 1)[0:len(data)]
-    colors = colors[0:len(data)]
+    dlen = len(self.data)
+    colors = np.repeat(np.arange(0, 360), int(dlen / 360) + 1)[0:dlen]
+    colors = colors[0:dlen]
     self.subplot_proj.clear()
     self.subplot_proj.scatter(projected[:, 0], projected[:, 2], c=colors,
                               cmap=plt.cm.Spectral, picker=5)
-    fig.add_subplot(424).clear()
-    fig.add_subplot(424).scatter(projected[:, 0], projected[:, 2], c=colors)
+    self.fig.add_subplot(424).clear()
+    self.fig.add_subplot(424).scatter(projected[:, 0], projected[:, 2], c=colors)
     plt.show()
 
   def on_click(self, event):
     print('click', event)
 
 
-if __name__ == '__main__':
-  FLAGS.load_from_checkpoint = './tmp/doom_bs__act|sigmoid__bs|30__h|500|3|100__init|na__inp|cbd4__lr|0.0004__opt|AO'
-  latest_file = ut.get_latest_file(folder=FLAGS.load_from_checkpoint, filter=r'.*\d+\.txt$')
+def visualize_latest_from_visualization_folder():
+  latest_file = ut.get_latest_file(filter=r'.*\d+\.txt$')
   print(latest_file)
   data = np.loadtxt(latest_file)  # [0:360]
+  vi.visualize_encodings(data)
 
-  fig = plt.figure()
-  fig.set_size_inches(fig.get_size_inches()[0] * 2, fig.get_size_inches()[1] * 2)
-  entity = EncodingVisualizer(fig, data)
-  fig.tight_layout()
+# if __name__ == '__main__':
+#   FLAGS.load_from_checkpoint = './tmp/doom_bs__act|sigmoid__bs|30__h|500|3|100__init|na__inp|cbd4__lr|0.0004__opt|AO'
+#   latest_file = ut.get_latest_file(folder=FLAGS.load_from_checkpoint, filter=r'.*\d+\.txt$')
+#   print(latest_file)
+#   data = np.loadtxt(latest_file)  # [0:360]
+#
+#   fig = plt.figure()
+#   fig.set_size_inches(fig.get_size_inches()[0] * 2, fig.get_size_inches()[1] * 2)
+#   entity = EncodingVisualizer(fig, data)
+#   fig.tight_layout()
+#
+#   plt.show()
 
-  plt.show()
+if __name__ == '__main__':
+  visualize_latest_from_visualization_folder()
+
+  # FLAGS.load_from_checkpoint = './tmp/doom_bs__act|sigmoid__bs|30__h|500|12|500__init|na__inp|8pd3__lr|0.0004__opt|AO'
+  # latest_file = ut.get_latest_file(folder=FLAGS.load_from_checkpoint, filter=r'.*\d+\.txt$')
+  # print(latest_file[-15:], latest_file)
+  # data = np.loadtxt(latest_file)  # [0:360]
+  # vi.visualize_encodings(data)
+  # plt.show()

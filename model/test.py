@@ -4,6 +4,7 @@ import model.utils as ut
 import tensorflow as tf
 import model.input as inp
 import model.activation_functions as act
+import visualization as vis
 
 def minibatch_test():
     x = np.arange(0, 100, 1)
@@ -48,7 +49,20 @@ def test_ds_scale():
     assert min(scaled) == -2
     assert max(scaled) == -1
 
+
+def test_manual_pca():
+    d = np.random.rand(100, 2)
+    d = np.hstack((np.zeros((100, 5)), d))
+    proj = vis.manual_pca(d)
+    assert proj.shape[1] == 3
+    assert proj[0, 0] != 0
+    assert proj[0, -1] == 0
+    std = np.std(proj, axis=0)
+    assert std[0] > std[1]
+
+
 to_file_name_test()
+test_manual_pca()
 #
 # test_activation()
 # test_ds_scale()

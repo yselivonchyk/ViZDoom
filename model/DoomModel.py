@@ -21,7 +21,7 @@ from prettytensor.tutorial import data_utils
 tf.app.flags.DEFINE_string('save_path', './tmp/checkpoint', 'Where to save the model checkpoints.')
 tf.app.flags.DEFINE_string('logdir', '', 'where to save logs.')
 
-tf.app.flags.DEFINE_boolean('visualize', True, 'Create visualization of ')
+tf.app.flags.DEFINE_boolean('visualize', True, 'Create visualization of decoded images')
 tf.app.flags.DEFINE_integer('vis_substeps', 10, 'Use INT intermediate images')
 
 tf.app.flags.DEFINE_boolean('load_state', True, 'Create visualization of ')
@@ -35,6 +35,7 @@ tf.app.flags.DEFINE_string('input_path', '../data/tmp/8_pos_delay_3/img/', 'path
 tf.app.flags.DEFINE_integer('series_length', 3, 'Data is permuted in series of INT consecutive inputs')
 
 tf.app.flags.DEFINE_string('load_from_checkpoint', None, 'where to save logs.')
+tf.app.flags.DEFINE_string('suffix', 'doom_bs', 'Suffix to use to distinguish models by purpose')
 
 
 FLAGS = tf.app.flags.FLAGS
@@ -98,9 +99,9 @@ class DoomModel:
   def process_in_batches(self, session, placeholders, op, set, batch_size=None):
     batch_size = batch_size if batch_size else FLAGS.batch_size
     batch_count = int(len(set) / batch_size)
-    if batch_count*batch_size != len(set):
-      ut.print_info('not all examples are going to be processed: %d/%d' % (
-        batch_count*batch_size, len(set)))
+    # if batch_count*batch_size != len(set):
+    #   ut.print_info('not all examples are going to be processed: %d/%d' % (
+    #     batch_count*batch_size, len(set)))
     feed = zip(xrange(batch_count), pt.train.feed_numpy(batch_size, set, set))
     result_batches = [session.run([op], dict(zip(placeholders, data)))[0] for _, data in feed]
     return np.vstack(result_batches)
@@ -110,7 +111,7 @@ class DoomModel:
   def get_meta(self, meta=None):
     meta = meta if meta else {}
 
-    meta['suf'] = 'doom_bs'
+    meta['suf'] = FLAGS.suffix
     meta['act'] = self._activation.func
     meta['lr'] = FLAGS.learning_rate
     meta['init'] = self._weight_init
@@ -271,7 +272,7 @@ class DoomModel:
       reconstruction_info = 'last reconstruction: (min, max): (%3d %3d)' % (
       np.min(reconstructions[-1]),
       np.max(reconstructions[-1]))
-    epoch_past_info = '' if epochs_past is None else '+%d' % epochs_past - 1
+    epoch_past_info = '' if epochs_past is None else '+%d' % (epochs_past - 1)
     info_string = 'Accuracy after %2d/%d%s epoch(s): %.2f; %s' % (
       current_epoch + 1,
       epochs,
@@ -283,16 +284,16 @@ class DoomModel:
   @staticmethod
   def is_stopping_point(current_epoch, epochs_to_train, stop_every=None, stop_x_times=None,
                       stop_on_last=True):
+    if stop_on_last and current_epoch + 1 == epochs_to_train:
+      return True
     if stop_x_times is not None:
-      if current_epoch % np.ceil(epochs_to_train / float(FLAGS.vis_substeps)) == 0:
-        return True
+      return current_epoch % np.ceil(epochs_to_train / float(FLAGS.vis_substeps)) == 0
     if stop_every is not None:
-      if current_epoch % stop_every == 0:
-        return True
-    return stop_on_last and current_epoch + 1 == epochs_to_train
+      return (current_epoch+1) % stop_every == 0
 
   def train(self, epochs_to_train=5):
     meta = self.get_meta()
+    ut.print_time('train started: %s' % ut.to_file_name(meta))
     # return meta, np.random.rand(epochs_to_train)
     ut.configure_folders(FLAGS, meta)
     accuracy_by_epoch, epoch_reconstruction = [], []
@@ -314,7 +315,7 @@ class DoomModel:
         train_set = inp.permute_array_in_series(original_set, FLAGS.series_length)
 
         if FLAGS.visualize and DoomModel.is_stopping_point(current_epoch, epochs_to_train,
-                                          stop_every=FLAGS.vis_substeps):
+                                          stop_x_times=FLAGS.vis_substeps):
           epoch_reconstruction.append(self.process_in_batches(
             sess, (self._input_placeholder, self._output_placeholder), self._visualize_op, visual_set))
 
@@ -334,12 +335,11 @@ class DoomModel:
 
         self.print_epoch_info(accuracy, current_epoch, epoch_reconstruction, epochs_to_train)
         accuracy_by_epoch.append(accuracy)
-
+        if DoomModel.is_stopping_point(current_epoch, epochs_to_train, FLAGS.save_every):
+          self.checkpoint(_runner, sess)
         if DoomModel.is_stopping_point(current_epoch, epochs_to_train, FLAGS.save_encodings_every):
           encoding = self.process_in_batches(sess, placeholders, self._encode_op, original_set)
           self.save_encodings(encoding)
-        if DoomModel.is_stopping_point(current_epoch, epochs_to_train, FLAGS.save_every):
-          self.checkpoint(_runner, sess)
 
       meta['acu'] = int(np.min(accuracy_by_epoch))
       meta['e'] = self.get_past_epochs()
@@ -366,16 +366,16 @@ if __name__ == '__main__':
   # exit(0)
   # FLAGS.load_from_checkpoint = './tmp/doom_bs__act|sigmoid__bs|20__h|500|5|500__init|na__inp|cbd4__lr|0.0004__opt|AO'
   model = DoomModel()
-  model.set_layer_sizes([500, 5, 500])
-  model.train(20)
-  exit(0)
-  for i in range(10):
-    model.train(1000)
-
-  model = DoomModel()
-  model.set_layer_sizes([1000, 10, 1000])
-  for i in range(10):
-    model.train(1000)
+  model.set_layer_sizes([500, 12, 500])
+  model.train(2)
+  # exit(0)
+  # for i in range(10):
+  #   model.train(1000)
+  #
+  # model = DoomModel()
+  # model.set_layer_sizes([1000, 10, 1000])
+  # for i in range(10):
+  #   model.train(1000)
 
 
       # model = DoomModel()

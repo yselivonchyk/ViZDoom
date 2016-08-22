@@ -2,6 +2,7 @@ from sklearn.manifold import TSNE
 import sklearn.manifold as mn
 import matplotlib.pyplot as plt
 import sklearn.metrics.pairwise as pw
+import scipy.spatial.distance as dist
 import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
 import os, sys
@@ -46,52 +47,81 @@ def create_gif_from_folder(folder):
   # save_fig(file_name)
   pass
 
+STD_THRESHOLD = 0.1
 
-def dimensionality_reduction(data, labels=None, colors=None, file_name=None):
-  if data.shape[1] <= 3:
-    print_data_only(data, file_name)
-    return
 
-  if colors is None:
-    # colors = np.squeeze(3 * np.pi * (np.random.rand(1, len(data)) - 0.5))
-    colors = build_radial_colors(len(data))
-  grid = (4, 4)
+def manual_pca(data):
+  """remove meaningless dimensions"""
+  std = data.std(axis=0)
+
+  # order = np.argsort(std)[::-1]
+  order = np.arange(0, data.shape[1]).astype(np.int32)
+  std = std[order]
+  # filter components by STD but take at least 3
+
+  meaningless = [order[i] for i, x in enumerate(std) if x <= STD_THRESHOLD]
+  if any(meaningless):
+    ut.print_info('meaningless dimensions on visualization: %s' % str(meaningless))
+
+  order = [order[i] for i, x in enumerate(std) if x > STD_THRESHOLD or i < 3]
+  return data[:, order]
+
+
+def _needs_hessian(manifold):
+  if hasattr(manifold, 'dissimilarity') and manifold.dissimilarity == 'precomputed':
+    return True
+  if hasattr(manifold, 'metric') and manifold.metric == 'precomputed':
+    return True
+  return False
+
+
+def visualize_encodings(encodings, labels=None, file_name=None, cut=-1):
+  encodings = encodings[0:360] if len(encodings) < 1500 else encodings[0:720]
+  encodings = manual_pca(encodings)
+
+  if encodings.shape[1] <= 3:
+    return print_data_only(encodings, file_name)
+
+  colors = build_radial_colors(len(encodings))
+  grid = (3, 4)
   project_ops = []
 
-  for _, n in enumerate([2, 3]):
-    project_ops.append(("TSNE N:%d" % n, TSNE(perplexity=30, n_components=n, init='pca',
-                                              n_iter=2000)))
-    # project_ops.append(("TSNE N:%d" % n, TSNE(perplexity=30, n_components=n, init='pca', n_iter=10000)))
-    # project_ops.append(("TSNE N:%d" % n, TSNE(perplexity=30, n_components=n, n_iter=1000)))
-    project_ops.append(("TSNE N:%d" % n, TSNE(perplexity=5, n_components=n, n_iter=200)))
-    # project_ops.append(('LLE N:%d' % n, mn.LocallyLinearEmbedding(4, n, eigen_solver='auto', method='standard')))
-    project_ops.append(('MDS euclidian N:%d' % n, mn.MDS(n, max_iter=300, n_init=1)))
-    project_ops.append(('MDS cosine N:%d' % n, mn.MDS(n, max_iter=300, n_init=1,
-                                                      dissimilarity='precomputed')))
+  n = 2
+  project_ops.append(("LLE ltsa       N:%d" % n, mn.LocallyLinearEmbedding(10, n, method='ltsa')))
+  project_ops.append(("LLE modified   N:%d" % n, mn.LocallyLinearEmbedding(10, n, method='modified')))
+  project_ops.append(('MDS euclidean  N:%d' % n, mn.MDS(n, max_iter=300, n_init=1, dissimilarity='precomputed')))
+  project_ops.append(("TSNE 30/2000   N:%d" % n, TSNE(perplexity=30, n_components=n, init='pca',n_iter=2000)))
+  n = 3
+  project_ops.append(("LLE ltsa       N:%d" % n, mn.LocallyLinearEmbedding(10, n, method='ltsa')))
+  project_ops.append(("LLE modified    N:%d" % n, mn.LocallyLinearEmbedding(10, n, method='modified')))
+  project_ops.append(('MDS euclidean  N:%d' % n, mn.MDS(n, max_iter=300, n_init=1, dissimilarity='precomputed')))
+  project_ops.append(('MDS cosine     N:%d' % n, mn.MDS(n, max_iter=300, n_init=1, dissimilarity='precomputed')))
+
+  hessian_euc = dist.squareform(dist.pdist(encodings, 'euclidean'))
+  hessian_cos = dist.squareform(dist.pdist(encodings, 'cosine'))
+  print(np.min(hessian_euc), np.min(hessian_cos), hessian_euc.size - np.count_nonzero(hessian_euc))
 
   fig = plt.figure()
-  fig.set_size_inches(fig.get_size_inches()[0] * 2.5, fig.get_size_inches()[1] * 2.5)
+  fig.set_size_inches(fig.get_size_inches()[0] * 2.5, fig.get_size_inches()[1] * 3)
+
   for i, (name, manifold) in enumerate(project_ops):
-    # ut.print_time(name)
+    ut.print_time(name)
     is3d = 'N:3' in name
     try:
-      if is3d:
-        subplot = plt.subplot(grid[0], grid[1], 1 + i, projection='3d')
-      else:
-        subplot = plt.subplot(grid[0], grid[1], 1 + i)
+      if is3d: subplot = plt.subplot(grid[0], grid[1], 1 + i, projection='3d')
+      else: subplot = plt.subplot(grid[0], grid[1], 1 + i)
 
-      manifold_data = data.copy()
-      if (hasattr(manifold, 'dissimilarity') and manifold.dissimilarity == 'precomputed') \
-          or (hasattr(manifold, 'metric') and manifold.metric == 'precomputed'):
-        manifold_data = pw.pairwise_distances(manifold_data, metric="cosine")
-      projections = manifold.fit_transform(manifold_data, labels)
+      data_source = encodings if not _needs_hessian(manifold) else \
+        (hessian_cos if 'cosine' in name else hessian_euc)
+      projections = manifold.fit_transform(data_source)
       scatter(subplot, projections, is3d, colors)
       subplot.set_title(name)
     except:
       print(name, "Unexpected error: ", sys.exc_info()[0], sys.exc_info()[1] if len(sys.exc_info()) > 1 else '')
-  visualize_data_same(data, grid=grid, places=np.arange(9, 13))
-  visualize_data_same(data, grid=grid, places=np.arange(13, 17), dims_as_colors=True)
+  visualize_data_same(encodings, grid=grid, places=np.arange(9, 13))
+  # visualize_data_same(encodings, grid=grid, places=np.arange(13, 17), dims_as_colors=True)
   save_fig(file_name)
+  ut.print_time('visualization finished')
 
 
 def save_fig(file_name):
@@ -103,11 +133,56 @@ def save_fig(file_name):
                 frameon=None)
 
 
-def visualize_data_same(data, grid, places, dims_as_colors=False):
+def _random_split(sequence, length, original):
+  if sequence is None or len(sequence) < length:
+    sequence = original.copy()
+  sequence = np.random.permutation(sequence)
+  return sequence[:length], sequence[length:]
+
+
+def visualize_data_same(data, grid, places):
   assert len(places) == 4
 
+  all_dimensions = np.arange(0, data.shape[1]).astype(np.int8)
+  first_proj, left = _random_split(None, 2, all_dimensions)
+  first_color_indexes, _ = _random_split(left, 3, all_dimensions)
+  first_color = data_to_colors(data, first_color_indexes)
+
+  second_proj, left = _random_split(left, 2, all_dimensions)
+  second_color = build_radial_colors(len(data))
+
+  third_proj, left = _random_split(left, 3, all_dimensions)
+  third_color_indexes, _ = _random_split(left, 3, all_dimensions)
+  third_color = data_to_colors(data, third_color_indexes)
+
+  forth_proj = np.argsort(data.std(axis=0))[::-1][0:3]
+  forth_color = build_radial_colors(len(data))
+
+  for i, (projection, color) in enumerate([
+    (first_proj, first_color),
+    (second_proj, second_color),
+    (third_proj, third_color),
+    (forth_proj, forth_color)]
+  ):
+    points = np.transpose(data[:, projection])
+
+    if len(projection) == 2:
+      subplot = plt.subplot(grid[0], grid[1], places[i])
+      subplot.scatter(points[0], points[1], c=color, cmap=COLOR_MAP)
+    else:
+      subplot = plt.subplot(grid[0], grid[1], places[i], projection='3d')
+      subplot.scatter(points[0], points[1], points[2], c=color, cmap=COLOR_MAP)
+    subplot.set_title('Data %s' % str(projection))
+
+
+def visualize_data_same_deprecated(data, grid, places, dims_as_colors=False):
+  assert len(places) == 4
+  dimensions = np.arange(0, np.min([6, data.shape[1]])).astype(np.int)
+  assert len(dimensions) == data.shape[1] or len(dimensions) == 6
+  projections = [dimensions[x] for x in [[0, 1], [-1, -2], [0, 1, 2], [-1, -2, -3]] ]
   colors = build_radial_colors(len(data))
-  for i, dims in enumerate([[0, 1], [-1, -2], [0, 1, 2], [-1, -2, -3]]):
+
+  for i, dims in enumerate(projections):
     points = np.transpose(data[:, dims])
     if dims_as_colors:
       colors = data_to_colors(np.delete(data.copy(), dims, axis=1))
@@ -140,7 +215,7 @@ def build_radial_colors(length):
 
 
 def data_to_colors(data, indexes=None):
-  color_data = data[:, indexes] if indexes else data
+  color_data = data[:, indexes] if indexes is not None else data
   shape = color_data.shape
 
   if shape[1] < 3:
@@ -153,7 +228,7 @@ def data_to_colors(data, indexes=None):
   if np.max(color_data) <= 1:
     color_data *= 256
   color_data = color_data.astype(np.int32)
-  assert np.mean(color_data) <= 255
+  assert np.mean(color_data) <= 256
   color_data[color_data > 255] = 255
   color_data = color_data * np.asarray([256 ** 2, 256, 1])
 
@@ -163,14 +238,14 @@ def data_to_colors(data, indexes=None):
   return color_data
 
 
-def visualize_encoding(encodings, folder=None, meta={}):
+def visualize_encoding(encodings, folder=None, meta={}, cut=-1):
   # ut.print_info('VISUALIZATION cutting the encodings', color=31)
   # encodings = encodings[1:360]
   file_path = None
   if folder:
     meta['postfix'] = 'pca'
     file_path = ut.to_file_name(meta, folder, 'png')
-  dimensionality_reduction(encodings, file_name=file_path)
+  visualize_encodings(encodings, file_name=file_path, cut=cut)
 
 
 def visualize_available_data():
@@ -192,7 +267,7 @@ def visualize_available_data():
           png_path = os.path.join('./visualizations', png_name)
 
           if float(lrate_info) == 0.0004 or float(lrate_info) == 0.0001:
-            dimensionality_reduction(data, file_name=png_path)
+            visualize_encodings(data, file_name=png_path)
             # visualize_data(data, file_name=png_path[0:-4] + '_data.png')
           print('%3d/%3d -> %s' % (i, 151, png_path))
 

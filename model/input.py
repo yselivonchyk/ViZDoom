@@ -68,7 +68,8 @@ def get_images(folder, at_most=None):
   to_int = lambda s: int(s.split('/')[-1].split('.')[0][1:])
   labels = list(map(to_int, files))
   ut.print_info('Found %d images: %s...' % (len(labels), str(labels[1:5])))
-  return np.asarray(images), np.asarray(labels, dtype=np.uint32)
+  images, labels = np.asarray(images), np.asarray(labels, dtype=np.uint32)
+  return images, labels
 
 
 def rescale_ds(ds, min, max):

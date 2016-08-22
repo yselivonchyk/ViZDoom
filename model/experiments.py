@@ -4,17 +4,20 @@ import utils as ut
 import input
 import DoomModel as dm
 import pickle
+
 FLAGS = tf.app.flags.FLAGS
 
 
 def search_learning_rate(lrs=[0.001, 0.0004, 0.0001, 0.00003, 0.00001],
                          epochs=100):
+  FLAGS.suffix = 'grid_lr'
   ut.print_info('START: search_learning_rate', color=31)
 
   best_result, best_args = None, None
   result_summary, result_list = [], []
 
   for lr in lrs:
+    ut.print_info('STEP: search_learning_rate', color=31)
     FLAGS.learning_rate = lr
     model = dm.DoomModel()
     meta, accuracy_by_epoch = model.train(epochs)
@@ -34,6 +37,7 @@ def search_learning_rate(lrs=[0.001, 0.0004, 0.0001, 0.00003, 0.00001],
 
 
 def search_batch_size(bss=[20, 50, 100], strides=[2, 4, 7], epochs=100):
+  FLAGS.suffix = 'grid_bs'
   ut.print_info('START: search_batch_size', color=31)
   best_result, best_args = None, None
   result_summary, result_list = [], []
@@ -41,6 +45,7 @@ def search_batch_size(bss=[20, 50, 100], strides=[2, 4, 7], epochs=100):
   print(bss)
   for bs in bss:
     for stride in strides:
+      ut.print_info('STEP: search_batch_size %d %d' % (bs, stride), color=31)
       FLAGS.batch_size = bs
       FLAGS.series_length = stride
       model = dm.DoomModel()
@@ -111,6 +116,7 @@ h_e / h_d	100	500	2000
 
 
 def search_layer_sizes(epochs=200):
+  FLAGS.suffix = 'grid_h'
   ut.print_info('START: search_layer_sizes', color=31)
   best_result, best_args = None, None
   result_summary, result_list = [], []
@@ -123,6 +129,7 @@ def search_layer_sizes(epochs=200):
         model.layer_narrow = h_narrow
         model.layer_decoder = h_decoder
         layer_info = str(model.get_layer_info())
+        ut.print_info('STEP: search_layer_sizes: ' + str(layer_info), color=31)
 
         meta, accuracy_by_epoch = model.train(epochs)
         result_list.append((layer_info, accuracy_by_epoch))
@@ -185,10 +192,12 @@ def train_couple_8_models():
 
 
 if __name__ == '__main__':
-    # print_reconstructions_along_with_originals()
-  train_couple_8_models()
+  # print_reconstructions_along_with_originals()
+  # train_couple_8_models()
+  FLAGS.suffix = 'grid'
   FLAGS.input_path = '../data/tmp/8_pos_delay_3/img/'
-  search_learning_rate(epochs=500)
-  search_layer_sizes(epochs=500)
-  search_batch_size(epochs=500)
-
+  epochs = 10
+  search_layer_sizes(epochs=epochs)
+  search_batch_size(epochs=epochs)
+  FLAGS.batch_size = 40
+  search_learning_rate(epochs=epochs)
