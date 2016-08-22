@@ -66,9 +66,6 @@ class DoomModel:
               weight_init=None,
               activation=act.sigmoid,
               optimizer=tf.train.AdamOptimizer):
-
-    self._encoder_to_use = self.encoder_2
-    self._decoder_to_use = self.decoder_2
     self._weight_init = weight_init
     self._activation= activation
     self._optimizer= optimizer
@@ -78,28 +75,16 @@ class DoomModel:
   def encoder(self, input_tensor):
     return (pt.wrap(input_tensor)
             .flatten()
-            .fully_connected(self.layer_narrow)
-            ).tensor
-
-  def encoder_2(self, input_tensor):
-    return (pt.wrap(input_tensor)
-            .flatten()
             .fully_connected(self.layer_encoder)
             .fully_connected(self.layer_narrow))
 
-  def encoder_conv(self, input_tensor):
-    return (pt.wrap(input_tensor)
-            .flatten()
-            .fully_connected(self.layer_encoder)
-            .fully_connected(self.layer_narrow))
+  # def encoder_conv(self, input_tensor):
+  #   return (pt.wrap(input_tensor)
+  #           .flatten()
+  #           .fully_connected(self.layer_encoder)
+  #           .fully_connected(self.layer_narrow))
 
   def decoder(self, input_tensor=None, weight_init=tf.truncated_normal):
-    return (pt.wrap(input_tensor)
-      .fully_connected(
-      _image_shape[0] * _image_shape[1] * _image_shape[2],
-      init=weight_init))
-
-  def decoder_2(self, input_tensor=None, weight_init=tf.truncated_normal):
     return (pt.wrap(input_tensor)
             .fully_connected(self.layer_decoder)
             .fully_connected(_image_shape[0] * _image_shape[1] * _image_shape[2],
@@ -168,12 +153,11 @@ class DoomModel:
     self._output_placeholder = tf.placeholder(tf.float32, self.get_batch_shape())
     self._encoding_placeholder = tf.placeholder(tf.float32, (FLAGS.batch_size, self.layer_narrow))
 
-    placeholders = (self._input_placeholder, self._output_placeholder)
     with pt.defaults_scope(activation_fn=self._activation.func):
       with pt.defaults_scope(phase=pt.Phase.train):
         with tf.variable_scope("model"):
-          self._encode_op = self._encoder_to_use(self._input_placeholder)
-          self._encdec_op = self._decoder_to_use(
+          self._encode_op = self.encoder(self._input_placeholder)
+          self._encdec_op = self.decoder(
             self._encode_op,
             weight_init=self._weight_init)
           self._visualize_op = tf.cast(tf.mul(self._encdec_op, tf.constant(255.)), tf.uint8)
@@ -228,11 +212,11 @@ class DoomModel:
     target_tensor = (pt.wrap(target_tensor).flatten()).tensor
     return -tf.reduce_sum(output_tensor * tf.log(target_tensor))
 
-  def loss(self, input, reconstruciton):
-    pretty_input = pt.wrap(input)
-    reconstruciton = pt.wrap(reconstruciton).flatten()
-    pt.wrap(tf.reduce_mean(tf.square(input - reconstruciton)))
-    return pretty_input.cross_entropy(reconstruciton)
+  def loss(self, original, reconstruction):
+    pretty_input = pt.wrap(original)
+    reconstruction = pt.wrap(reconstruction).flatten()
+    pt.wrap(tf.reduce_mean(tf.square(original - reconstruction)))
+    return pretty_input.cross_entropy(reconstruction)
 
   def square_loss(self, output_tensor, output_actual):
     return output_tensor.l2_regression(pt.wrap(output_actual).flatten())
@@ -261,8 +245,13 @@ class DoomModel:
     self.layer_narrow = h[1]
     self.layer_decoder = h[2]
 
-  def save_encodings(self, encodings):
-    epochs_past = int(bookkeeper.global_step().eval() / _epoch_size)
+  @staticmethod
+  def get_past_epochs():
+    return int(bookkeeper.global_step().eval() / _epoch_size)
+
+  @staticmethod
+  def save_encodings(encodings):
+    epochs_past = DoomModel.get_past_epochs()
     meta = {'suf': 'encodings', 'e': int(epochs_past)}
     projection_file = ut.to_file_name(meta, FLAGS.save_path, 'txt')
     np.savetxt(projection_file, encodings)
@@ -274,16 +263,15 @@ class DoomModel:
     runner._saver.max_to_keep = 2
     runner._saver.save(sess, FLAGS.save_path, int(epochs_past))
 
-  def get_past_epochs(self):
-    return int(bookkeeper.global_step().eval() / _epoch_size)
-
-  def print_epoch_info(self, accuracy, current_epoch, reconstructions, epochs, epochs_past):
+  def print_epoch_info(self, accuracy, current_epoch, reconstructions, epochs):
+    epochs_past = DoomModel.get_past_epochs() - current_epoch
     reconstruction_info = ''
-    if self.visualization_point(epochs, current_epoch):
+    if FLAGS.visualize and DoomModel.is_stopping_point(current_epoch, epochs,
+                                          stop_every=FLAGS.vis_substeps):
       reconstruction_info = 'last reconstruction: (min, max): (%3d %3d)' % (
       np.min(reconstructions[-1]),
       np.max(reconstructions[-1]))
-    epoch_past_info = '' if epochs_past is None else '+%d' % epochs_past
+    epoch_past_info = '' if epochs_past is None else '+%d' % epochs_past - 1
     info_string = 'Accuracy after %2d/%d%s epoch(s): %.2f; %s' % (
       current_epoch + 1,
       epochs,
@@ -292,12 +280,16 @@ class DoomModel:
       reconstruction_info)
     ut.print_time(info_string)
 
-  def visualization_point(self, epochs_to_train, current_epoch):
-    if not FLAGS.visualize:
-      return False
-    intermidiate_point = current_epoch % np.ceil(epochs_to_train / float(FLAGS.vis_substeps)) == 0
-    is_last_step = current_epoch + 1 == epochs_to_train
-    return intermidiate_point or is_last_step
+  @staticmethod
+  def is_stopping_point(current_epoch, epochs_to_train, stop_every=None, stop_x_times=None,
+                      stop_on_last=True):
+    if stop_x_times is not None:
+      if current_epoch % np.ceil(epochs_to_train / float(FLAGS.vis_substeps)) == 0:
+        return True
+    if stop_every is not None:
+      if current_epoch % stop_every == 0:
+        return True
+    return stop_on_last and current_epoch + 1 == epochs_to_train
 
   def train(self, epochs_to_train=5):
     meta = self.get_meta()
@@ -315,14 +307,14 @@ class DoomModel:
 
       if FLAGS.load_state:
         _runner.load_from_checkpoint(sess)
-        epochs_past = self.get_past_epochs()
-        ut.print_info('Checkpoint restore requested. previous epoch: %d' % epochs_past, color=31)
+        ut.print_info('Restored requested. Previous epoch: %d' % self.get_past_epochs(), color=31)
 
       for current_epoch in xrange(epochs_to_train):
         # train_set = inp.permute_data(original_set)
         train_set = inp.permute_array_in_series(original_set, FLAGS.series_length)
 
-        if self.visualization_point(epochs_to_train, current_epoch):
+        if FLAGS.visualize and DoomModel.is_stopping_point(current_epoch, epochs_to_train,
+                                          stop_every=FLAGS.vis_substeps):
           epoch_reconstruction.append(self.process_in_batches(
             sess, (self._input_placeholder, self._output_placeholder), self._visualize_op, visual_set))
 
@@ -340,16 +332,13 @@ class DoomModel:
           feed_vars=placeholders,
           feed_data=pt.train.feed_numpy(FLAGS.batch_size, original_set, original_set))
 
-        self.print_epoch_info(accuracy, current_epoch, epoch_reconstruction,
-                              epochs_to_train, epochs_past)
+        self.print_epoch_info(accuracy, current_epoch, epoch_reconstruction, epochs_to_train)
         accuracy_by_epoch.append(accuracy)
 
-        if(current_epoch + 1 == epochs_to_train) \
-            or ((current_epoch + 1) % FLAGS.save_encodings_every) == 0:
+        if DoomModel.is_stopping_point(current_epoch, epochs_to_train, FLAGS.save_encodings_every):
           encoding = self.process_in_batches(sess, placeholders, self._encode_op, original_set)
           self.save_encodings(encoding)
-        if (current_epoch + 1 == epochs_to_train) \
-            or ((current_epoch + 1) % FLAGS.save_every) == 0:
+        if DoomModel.is_stopping_point(current_epoch, epochs_to_train, FLAGS.save_every):
           self.checkpoint(_runner, sess)
 
       meta['acu'] = int(np.min(accuracy_by_epoch))
@@ -378,6 +367,8 @@ if __name__ == '__main__':
   # FLAGS.load_from_checkpoint = './tmp/doom_bs__act|sigmoid__bs|20__h|500|5|500__init|na__inp|cbd4__lr|0.0004__opt|AO'
   model = DoomModel()
   model.set_layer_sizes([500, 5, 500])
+  model.train(20)
+  exit(0)
   for i in range(10):
     model.train(1000)
 
