@@ -232,7 +232,7 @@ def to_file_name(obj, folder=None, ext=None):
       value = _abbreviate_string(value.__name__)
     # FLOATS
     if isinstance(value, float) or isinstance(value, np.float32):
-      if value < 0.0:
+      if value < 0.0001:
         value = '%.6f' % value
       elif value > 1000000:
         value = '%.0f' % value

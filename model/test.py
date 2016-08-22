@@ -27,7 +27,7 @@ def to_file_name_test():
         'e': 20,
         'act': tf.nn.sigmoid,
         'opt':tf.train.GradientDescentOptimizer(learning_rate=0.001),
-        'lr': 0.001,
+        'lr': 0.000001,
         'init': tf.truncated_normal_initializer
     }))
 
@@ -48,8 +48,9 @@ def test_ds_scale():
     assert min(scaled) == -2
     assert max(scaled) == -1
 
-
-test_activation()
-test_ds_scale()
-# test_time()
+to_file_name_test()
+#
+# test_activation()
+# test_ds_scale()
+# # test_time()
 # to_file_name_test()

@@ -9,6 +9,8 @@ FLAGS = tf.app.flags.FLAGS
 
 def search_learning_rate(lrs=[0.001, 0.0004, 0.0001, 0.00003, 0.00001],
                          epochs=100):
+  ut.print_info('START: search_learning_rate', color=31)
+
   best_result, best_args = None, None
   result_summary, result_list = [], []
 
@@ -32,6 +34,7 @@ def search_learning_rate(lrs=[0.001, 0.0004, 0.0001, 0.00003, 0.00001],
 
 
 def search_batch_size(bss=[20, 50, 100], strides=[2, 4, 7], epochs=100):
+  ut.print_info('START: search_batch_size', color=31)
   best_result, best_args = None, None
   result_summary, result_list = [], []
 
@@ -108,6 +111,7 @@ h_e / h_d	100	500	2000
 
 
 def search_layer_sizes(epochs=200):
+  ut.print_info('START: search_layer_sizes', color=31)
   best_result, best_args = None, None
   result_summary, result_list = [], []
 
