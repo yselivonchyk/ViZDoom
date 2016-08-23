@@ -151,9 +151,11 @@ def plot_epoch_progress(meta, data, interactive=False):
   meta['time'] = datetime.datetime.now()
   pickle.dump((meta, data), open(backup_path, "wb"))
 
-  x = np.arange(0, len(data[0][1])) + 1
   for _, experiment in enumerate(data):
-    plt.semilogy(x, experiment[1], label=experiment[0], marker='.', linestyle='--')
+    x = np.arange(0, len(experiment[1])) + 1
+    accuracy = int(np.min(experiment[1]))
+    label = experiment[0] if str(accuracy) in experiment[0] else experiment[0] + str(accuracy)
+    plt.semilogy(x, experiment[1], label=label, marker='.', linestyle='--')
   plt.xlim([1, x[-1]])
   plt.legend(loc='best', fancybox=True, framealpha=0.5, fontsize=8)
   plt.savefig(png_path, dpi=300, facecolor='w', edgecolor='w',

@@ -32,7 +32,7 @@ tf.app.flags.DEFINE_integer('batch_size', 30, 'Batch size')
 tf.app.flags.DEFINE_float('learning_rate', 0.0004, 'Create visualization of ')
 tf.app.flags.DEFINE_string('input_path', '../data/tmp/8_pos_delay_3/img/', 'path to the '
                                                                                 'source folder')
-tf.app.flags.DEFINE_integer('series_length', 3, 'Data is permuted in series of INT consecutive inputs')
+tf.app.flags.DEFINE_integer('stride', 3, 'Data is permuted in series of INT consecutive inputs')
 
 tf.app.flags.DEFINE_string('load_from_checkpoint', None, 'where to save logs.')
 tf.app.flags.DEFINE_string('suffix', 'doom_bs', 'Suffix to use to distinguish models by purpose')
@@ -45,9 +45,13 @@ class DoomModel:
   _epoch_size = None
   _test_size = None
 
-  layer_narrow = 3
+  layer_narrow = 10
   layer_encoder = 500
-  layer_decoder = 100
+  layer_decoder = 500
+
+  # layer_narrow = 3
+  # layer_encoder = 500
+  # layer_decoder = 100
 
   _image_shape = None
   _batch_shape = None
@@ -118,6 +122,7 @@ class DoomModel:
     meta['bs'] = FLAGS.batch_size
     meta['h'] = self.get_layer_info()
     meta['opt'] = self._optimizer
+    meta['seq'] = FLAGS.stride
     meta['inp'] = inp.get_input_name(FLAGS.input_path)
     return meta
 
@@ -294,7 +299,7 @@ class DoomModel:
   def train(self, epochs_to_train=5):
     meta = self.get_meta()
     ut.print_time('train started: %s' % ut.to_file_name(meta))
-    # return meta, np.random.rand(epochs_to_train)
+    # return meta, np.random.randn(epochs_to_train)
     ut.configure_folders(FLAGS, meta)
     accuracy_by_epoch, epoch_reconstruction = [], []
 
@@ -312,7 +317,7 @@ class DoomModel:
 
       for current_epoch in xrange(epochs_to_train):
         # train_set = inp.permute_data(original_set)
-        train_set = inp.permute_array_in_series(original_set, FLAGS.series_length)
+        train_set = inp.permute_array_in_series(original_set, FLAGS.stride)
 
         if FLAGS.visualize and DoomModel.is_stopping_point(current_epoch, epochs_to_train,
                                           stop_x_times=FLAGS.vis_substeps):

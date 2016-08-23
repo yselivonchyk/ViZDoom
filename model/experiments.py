@@ -4,6 +4,7 @@ import utils as ut
 import input
 import DoomModel as dm
 import pickle
+from datetime import datetime as dt
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -47,23 +48,26 @@ def search_batch_size(bss=[20, 50, 100], strides=[2, 4, 7], epochs=100):
     for stride in strides:
       ut.print_info('STEP: search_batch_size %d %d' % (bs, stride), color=31)
       FLAGS.batch_size = bs
-      FLAGS.series_length = stride
+      FLAGS.stride = stride
       model = dm.DoomModel()
+      start = dt.now()
       meta, accuracy_by_epoch = model.train(epochs * int(bs / bss[0]))
-      result_list.append((ut.to_file_name(meta), accuracy_by_epoch))
+      meta['str'] = stride
+      meta['t'] = int((dt.now() - start).seconds)
+      result_list.append((ut.to_file_name(meta)[22:], accuracy_by_epoch))
       best_accuracy = np.min(accuracy_by_epoch)
       result_summary.append('\n\r bs:%d \tst:%d \tq:%.2f' % (bs, stride, best_accuracy))
       if best_result is None or best_result > best_accuracy:
         best_result = best_accuracy
         best_args = (bs, stride)
 
-  meta = {'suf': 'grid_batch_bs', 'e': epochs, 'acu': best_result, 'ser': stride,
-          'bs': FLAGS.batch_size, 'h': model.get_layer_info()}
+  meta = {'suf': 'grid_batch_bs', 'e': epochs, 'acu': best_result,
+          'h': model.get_layer_info()}
   pickle.dump(result_list, open('search_batch_size%d.txt' % epochs, "wb"))
   ut.plot_epoch_progress(meta, result_list)
   print(''.join(result_summary))
-  ut.print_info('BEST Q: %d IS ACHIEVED FOR bs, st: %d %d' % (best_result, best_args[0], best_args[1]), 36)
 
+  ut.print_info('BEST Q: %d IS ACHIEVED FOR bs, st: %d %d' % (best_result, best_args[0], best_args[1]), 36)
 
 """
 h_e	h_n	h_d	q
@@ -196,8 +200,8 @@ if __name__ == '__main__':
   # train_couple_8_models()
   FLAGS.suffix = 'grid'
   FLAGS.input_path = '../data/tmp/8_pos_delay_3/img/'
-  epochs = 10
-  search_layer_sizes(epochs=epochs)
+  epochs = 500
+  # search_layer_sizes(epochs=epochs)
   search_batch_size(epochs=epochs)
-  FLAGS.batch_size = 40
-  search_learning_rate(epochs=epochs)
+  # FLAGS.batch_size = 40
+  # search_learning_rate(epochs=epochs)

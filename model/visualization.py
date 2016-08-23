@@ -5,7 +5,8 @@ import sklearn.metrics.pairwise as pw
 import scipy.spatial.distance as dist
 import numpy as np
 from mpl_toolkits.mplot3d import Axes3D
-import os, sys
+import os
+import sys
 import utils as ut
 import tensorflow as tf
 
@@ -47,7 +48,7 @@ def create_gif_from_folder(folder):
   # save_fig(file_name)
   pass
 
-STD_THRESHOLD = 0.1
+STD_THRESHOLD = 0.01
 
 
 def manual_pca(data):
@@ -93,7 +94,7 @@ def visualize_encodings(encodings, labels=None, file_name=None, cut=-1):
   project_ops.append(("TSNE 30/2000   N:%d" % n, TSNE(perplexity=30, n_components=n, init='pca',n_iter=2000)))
   n = 3
   project_ops.append(("LLE ltsa       N:%d" % n, mn.LocallyLinearEmbedding(10, n, method='ltsa')))
-  project_ops.append(("LLE modified    N:%d" % n, mn.LocallyLinearEmbedding(10, n, method='modified')))
+  project_ops.append(("LLE modified   N:%d" % n, mn.LocallyLinearEmbedding(10, n, method='modified')))
   project_ops.append(('MDS euclidean  N:%d' % n, mn.MDS(n, max_iter=300, n_init=1, dissimilarity='precomputed')))
   project_ops.append(('MDS cosine     N:%d' % n, mn.MDS(n, max_iter=300, n_init=1, dissimilarity='precomputed')))
 
@@ -102,11 +103,14 @@ def visualize_encodings(encodings, labels=None, file_name=None, cut=-1):
   print(np.min(hessian_euc), np.min(hessian_cos), hessian_euc.size - np.count_nonzero(hessian_euc))
 
   fig = plt.figure()
-  fig.set_size_inches(fig.get_size_inches()[0] * 2.5, fig.get_size_inches()[1] * 3)
+  fig.set_size_inches(fig.get_size_inches()[0] * 3, fig.get_size_inches()[1] * 2.5)
 
   for i, (name, manifold) in enumerate(project_ops):
-    ut.print_time(name)
+    sys.stdout.write(' ' + name)
     is3d = 'N:3' in name
+    if 'grid' in FLAGS.suffix and 'MDS' in name:
+      continue
+
     try:
       if is3d: subplot = plt.subplot(grid[0], grid[1], 1 + i, projection='3d')
       else: subplot = plt.subplot(grid[0], grid[1], 1 + i)
