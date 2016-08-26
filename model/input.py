@@ -59,6 +59,14 @@ def get_image_shape(folder):
   return image.shape
 
 
+def get_batch_shape(batch_size, input_folder):
+  _image_shape = get_image_shape(input_folder)
+  if len(_image_shape) > 2:
+    return batch_size, _image_shape[0], _image_shape[1], _image_shape[2]
+  else:
+    return batch_size, _image_shape[0], _image_shape[1], [1]
+
+
 def get_images(folder, at_most=None):
   files = _get_image_file_list(folder)
   files.sort()

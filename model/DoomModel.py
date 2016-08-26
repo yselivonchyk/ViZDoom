@@ -30,8 +30,7 @@ tf.app.flags.DEFINE_integer('save_encodings_every', 50, 'Save model state every 
 tf.app.flags.DEFINE_integer('batch_size', 30, 'Batch size')
 
 tf.app.flags.DEFINE_float('learning_rate', 0.0004, 'Create visualization of ')
-tf.app.flags.DEFINE_string('input_path', '../data/tmp/8_pos_delay_3/img/', 'path to the '
-                                                                                'source folder')
+tf.app.flags.DEFINE_string('input_path', '../data/tmp/8_pos_delay_3/img/', 'input folder')
 tf.app.flags.DEFINE_integer('stride', 3, 'Data is permuted in series of INT consecutive inputs')
 
 tf.app.flags.DEFINE_string('load_from_checkpoint', None, 'where to save logs.')
@@ -155,8 +154,9 @@ class DoomModel:
 
   def build_model(self):
     tf.reset_default_graph()
-    self._input_placeholder = tf.placeholder(tf.float32, self.get_batch_shape())
-    self._output_placeholder = tf.placeholder(tf.float32, self.get_batch_shape())
+    batch_shape = inp.get_batch_shape(FLAGS.batch_size, FLAGS.input_path)
+    self._input_placeholder = tf.placeholder(tf.float32, batch_shape)
+    self._output_placeholder = tf.placeholder(tf.float32, batch_shape)
     self._encoding_placeholder = tf.placeholder(tf.float32, (FLAGS.batch_size, self.layer_narrow))
 
     with pt.defaults_scope(activation_fn=self._activation.func):
@@ -240,11 +240,6 @@ class DoomModel:
     visual_set, _ = data_utils.permute_data((original_data, labels))
     return original_data, visual_set[0:FLAGS.batch_size]
 
-  def get_batch_shape(self):
-    if len(_image_shape) > 2:
-      return FLAGS.batch_size, _image_shape[0], _image_shape[1], _image_shape[2]
-    else:
-      return FLAGS.batch_size, _image_shape[0], _image_shape[1], [1]
 
   def set_layer_sizes(self, h):
     self.layer_encoder = h[0]
