@@ -13,7 +13,6 @@ from scipy.misc import imsave
 from tensorflow.examples.tutorials.mnist import input_data
 
 from deconv import deconv2d
-from progressbar import ETA, Bar, Percentage, ProgressBar
 import input as inp
 import Batcher
 
@@ -25,7 +24,7 @@ flags.DEFINE_integer("updates_per_epoch", 10, "number of updates per epoch")
 flags.DEFINE_integer("max_epoch", 1000, "max epoch")
 flags.DEFINE_float("learning_rate", 1e-2, "learning rate")
 flags.DEFINE_string("working_directory", "", "")
-flags.DEFINE_integer("hidden_size", 2, "size of the hidden VAE unit")
+flags.DEFINE_integer("hidden_size", 10, "size of the hidden VAE unit")
 
 tf.app.flags.DEFINE_string('input_path', '../data/tmp/8_pos_delay_3/img/', 'input folder')
 

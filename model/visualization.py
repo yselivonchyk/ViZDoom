@@ -8,6 +8,7 @@ from mpl_toolkits.mplot3d import Axes3D
 import os
 import sys
 import utils as ut
+import time
 import tensorflow as tf
 
 
@@ -100,13 +101,15 @@ def visualize_encodings(encodings, labels=None, file_name=None, cut=-1):
 
   hessian_euc = dist.squareform(dist.pdist(encodings, 'euclidean'))
   hessian_cos = dist.squareform(dist.pdist(encodings, 'cosine'))
-  print(np.min(hessian_euc), np.min(hessian_cos), hessian_euc.size - np.count_nonzero(hessian_euc))
+  # print(
+  #   np.min(hessian_euc),
+  #   np.min(hessian_cos),
+  #   hessian_euc.size - np.count_nonzero(hessian_euc))
 
   fig = plt.figure()
   fig.set_size_inches(fig.get_size_inches()[0] * 3, fig.get_size_inches()[1] * 2.5)
 
   for i, (name, manifold) in enumerate(project_ops):
-    sys.stdout.write(' ' + name)
     is3d = 'N:3' in name
     if 'grid' in FLAGS.suffix and 'MDS' in name:
       continue
@@ -252,28 +255,47 @@ def visualize_encoding(encodings, folder=None, meta={}, cut=-1):
   visualize_encodings(encodings, file_name=file_path, cut=cut)
 
 
-def visualize_available_data():
-  i = 0
-  for root, dirs, files in os.walk("./"):
-    path = root.split('/')
-    if './tmp/' in root and len(path) == 3:
+def visualize_available_data(root='./', reembed=True, with_mds=False):
+  tf.app.flags.DEFINE_string('suffix', 'grid', '')
+  FLAGS.suffix = '__' if with_mds else 'grid'
+  assert os.path.exists(root)
+
+  files = _list_embedding_files(root, reembed=reembed)
+  total_files = len(files)
+
+  for i, file in enumerate(files):
+    print('%d/%d %s' % (i + 1, total_files, file))
+    data = np.loadtxt(file)
+    png_name = file.replace('.txt', '_pca.png')
+
+    visualize_encodings(data, file_name=png_name)
+    # folder_info = file.split('/')[-2]
+    # layer_info = folder_info.split('_h')[1].split('_')[0]
+    # layer_info = '_h|' + layer_info if len(layer_info) >= 2 else ''
+    # lrate_info = folder_info.split('_lr|')[1].split('_')[0]
+    # epoch_info = folder_info.split('_e|')[1].split('_')[0]
+    # png_name = layer_info + '_l|' + lrate_info + '_' + epoch_info + '_' + file[0:-4] + '.png'
+    # png_path = os.path.join('./visualizations', png_name)
+    #
+    # if float(lrate_info) == 0.0004 or float(lrate_info) == 0.0001:
+    #   visualize_encodings(data, file_name=png_path)
+    #   # visualize_data(data, file_name=png_path[0:-4] + '_data.png')
+    # print('%3d/%3d -> %s' % (i, 151, png_path))
+
+
+def _list_embedding_files(root, reembed=False):
+  ecndoding_files = []
+  for root, dirs, files in os.walk(root):
+    if '/tmp' in root:
       for file in files:
-        if '.txt' in file:
-          i += 1
-          txt_path = os.path.join(root, file)
-          data = np.loadtxt(txt_path)
-
-          layer_info = root.split('_h')[1].split('_')[0]
-          layer_info = '_h|' + layer_info if len(layer_info) >= 2 else ''
-          lrate_info = root.split('_lr|')[1].split('_')[0]
-          epoch_info = root.split('_e|')[1].split('_')[0]
-          png_name = layer_info + '_l|' + lrate_info + '_' + epoch_info + '_' + file[0:-4] + '.png'
-          png_path = os.path.join('./visualizations', png_name)
-
-          if float(lrate_info) == 0.0004 or float(lrate_info) == 0.0001:
-            visualize_encodings(data, file_name=png_path)
-            # visualize_data(data, file_name=png_path[0:-4] + '_data.png')
-          print('%3d/%3d -> %s' % (i, 151, png_path))
+        if '.txt' in file and 'meta' not in file:
+          full_path = os.path.join(root, file)
+          if not reembed:
+            vis_file = full_path.replace('.txt', '_pca.png')
+            if os.path.exists(vis_file):
+              continue
+          ecndoding_files.append(full_path)
+  return ecndoding_files
 
 
 def rerun_embeddings():
@@ -367,7 +389,8 @@ def reshape_images(column_picture, height, proportion=1):
 
 
 if __name__ == '__main__':
-  print_data_only(np.random.rand(10, 3), None)
+  visualize_available_data(root='../../VD_backup/All vizdoom data/', reembed=True, with_mds=True)
+  # print_data_only(np.random.rand(10, 3), None)
   exit(0)
   # visualize_available_data()
   # rerun_embeddings()

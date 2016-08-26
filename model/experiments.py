@@ -37,7 +37,7 @@ def search_learning_rate(lrs=[0.001, 0.0004, 0.0001, 0.00003, 0.00001],
   ut.print_info('BEST Q: %d IS ACHIEVED FOR LR: %f' % (best_result, best_args), 36)
 
 
-def search_batch_size(bss=[20, 50, 100], strides=[2, 4, 7], epochs=100):
+def search_batch_size(bss=[20, 50, 100], strides=[2, 4, 7], epochs=500):
   FLAGS.suffix = 'grid_bs'
   ut.print_info('START: search_batch_size', color=31)
   best_result, best_args = None, None
@@ -51,7 +51,8 @@ def search_batch_size(bss=[20, 50, 100], strides=[2, 4, 7], epochs=100):
       FLAGS.stride = stride
       model = dm.DoomModel()
       start = dt.now()
-      meta, accuracy_by_epoch = model.train(epochs * int(bs / bss[0]))
+      # meta, accuracy_by_epoch = model.train(epochs * int(bs / bss[0]))
+      meta, accuracy_by_epoch = model.train(epochs)
       meta['str'] = stride
       meta['t'] = int((dt.now() - start).seconds)
       result_list.append((ut.to_file_name(meta)[22:], accuracy_by_epoch))
