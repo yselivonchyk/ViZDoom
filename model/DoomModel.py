@@ -169,9 +169,10 @@ class DoomModel:
           self._encdec_op = self.decoder(
             self._encode_op,
             weight_init=self._weight_init)
-          self._visualize_op = tf.cast(tf.mul(
-            tf.reshape(self._encdec_op, batch_shape),
-            tf.constant(255.)), tf.uint8)
+          self._visualize_op = self._encdec_op.reshape(batch_shape)\
+            .apply(tf.mul, 255)\
+            .apply(tf.cast, tf.uint8)
+
 
     self._loss = self.square_loss(self._encdec_op, self._output_placeholder)
     optimizer = self._optimizer(learning_rate=FLAGS.learning_rate)
@@ -195,6 +196,7 @@ class DoomModel:
           .fully_connected(image_shape[0] * image_shape[1] * image_shape[2],
                            init=w_output, bias_init=b_output)
           .reshape((1, image_shape[0], image_shape[1], image_shape[2]))).tensor
+      self._decode_op = raw_decoding_op.apply(tf.mul, 255).apply(tf.cast, tf.uint8)
       self._decode_op = tf.cast(tf.mul(raw_decoding_op, tf.constant(255.)), tf.uint8)
 
   def decode(self, data):
@@ -255,9 +257,9 @@ class DoomModel:
   def get_past_epochs():
     return int(bookkeeper.global_step().eval() / _epoch_size)
 
-  def save_encodings(self, encodings, visual_set, reconstruction):
+  def save_encodings(self, encodings, visual_set, reconstruction, accuracy):
     epochs_past = DoomModel.get_past_epochs()
-    meta = {'suf': 'encodings', 'e': int(epochs_past)}
+    meta = {'suf': 'encodings', 'e': int(epochs_past), 'ac': int(accuracy)}
     projection_file = ut.to_file_name(meta, FLAGS.save_path, 'txt')
     np.savetxt(projection_file, encodings)
     vis.visualize_encoding(encodings, FLAGS.save_path, meta, visual_set, reconstruction)
@@ -345,7 +347,7 @@ class DoomModel:
           encoding = self.process_in_batches(sess, placeholders, self._encode_op, original_set)
           visual_reconstruction = self.process_in_batches(
             sess, (self._input_placeholder, self._output_placeholder), self._visualize_op, visual_set)
-          self.save_encodings(encoding, visual_set, visual_reconstruction)
+          self.save_encodings(encoding, visual_set, visual_reconstruction, accuracy)
 
       meta['acu'] = int(np.min(accuracy_by_epoch))
       meta['e'] = self.get_past_epochs()
@@ -366,26 +368,7 @@ def parse_params():
 
 
 if __name__ == '__main__':
-  # params = parse_params()
-  # epochs = 10 if 'epochs' not in params else int(params['epochs'])
-  # print(epochs)
-  # exit(0)
   # FLAGS.load_from_checkpoint = './tmp/doom_bs__act|sigmoid__bs|20__h|500|5|500__init|na__inp|cbd4__lr|0.0004__opt|AO'
   model = DoomModel()
   model.set_layer_sizes([500, 12, 500])
-  model.train(10)
-  # exit(0)
-  # for i in range(10):
-  #   model.train(1000)
-  #
-  # model = DoomModel()
-  # model.set_layer_sizes([1000, 10, 1000])
-  # for i in range(10):
-  #   model.train(1000)
-
-
-      # model = DoomModel()
-  # model.layer_decoder = 101
-  # model.layer_encoder = 501
-  # model.layer_narrow = 3
-  # model.train(2000)
+  model.train(20)

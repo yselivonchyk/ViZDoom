@@ -87,8 +87,8 @@ def _needs_hessian(manifold):
 
 def visualize_encodings(encodings, file_name=None,
                         grid=None, skip_every=999, fast=False, fig=None, interactive=False):
-  hessian_euc = dist.squareform(dist.pdist(encodings, 'euclidean'))
-  hessian_cos = dist.squareform(dist.pdist(encodings, 'cosine'))
+  hessian_euc = dist.squareform(dist.pdist(encodings[0:720], 'euclidean'))
+  hessian_cos = dist.squareform(dist.pdist(encodings[0:720], 'cosine'))
   encodings = encodings[0:360] if len(encodings) < 1500 else encodings[0:720]
   encodings = manual_pca(encodings)
 

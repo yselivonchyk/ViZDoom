@@ -206,6 +206,7 @@ def to_file_name(obj, folder=None, ext=None, append_timestamp=False):
         value = '%.0f' % value
       else:
         value = '%.4f' % value
+      value = value.rstrip('0')
     #INTS
     if isinstance(value, int):
       value = '%02d' % value

@@ -97,11 +97,11 @@ def visualize_from_checkpoint(checkpoint, epoch=None):
   plt.show()
 
 
-fast = True
+fast = False
+
 if __name__ == '__main__':
-  visualize_latest_from_visualization_folder()
-  # visualize_from_checkpoint(
-  #   checkpoint='./tmp/doom_bs__act|sigmoid__bs|20__h|500|5|500__init|na__inp' \
-  #                             '|cbd4__lr|0.0004__opt|AO',
-  #   epoch=250
-  # )
+  # visualize_latest_from_visualization_folder()
+  visualize_from_checkpoint(
+    checkpoint='/Users/eselivonchyk/Downloads/AllVDimg/tmp/grid_bs__act|sigmoid__bs|100__h|500|10|500__init|na__inp|8pd3__lr|0.0004__opt|AO__seq|02',
+    epoch=2500
+  )
