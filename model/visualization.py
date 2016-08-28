@@ -22,9 +22,13 @@ COLOR_MAP = plt.cm.Spectral
 
 def scatter(plot, data, is3d, colors):
   if is3d:
-    plot.scatter(data[:, 0], data[:, 1], data[:, 2], marker='.', c=colors, cmap=plt.cm.Spectral)
+    plot.scatter(data[:, 0], data[:, 1], data[:, 2],
+                 marker='.',
+                 c=colors,
+                 cmap=plt.cm.Spectral,
+                 picker=5)
   else:
-    plot.scatter(data[:, 0], data[:, 1], c=colors, cmap=plt.cm.Spectral)
+    plot.scatter(data[:, 0], data[:, 1], c=colors, cmap=plt.cm.Spectral, picker=5)
 
 
 def print_data_only(data, file_name):
@@ -71,21 +75,24 @@ def manual_pca(data):
 
 def _needs_hessian(manifold):
   if hasattr(manifold, 'dissimilarity') and manifold.dissimilarity == 'precomputed':
+    print(True)
     return True
   if hasattr(manifold, 'metric') and manifold.metric == 'precomputed':
+    print(True)
     return True
   return False
 
 
-def visualize_encodings(encodings, labels=None, file_name=None, cut=-1):
+def visualize_encodings(encodings, file_name=None, grid=None, skip_every=999, fast=False, fig=None):
+  hessian_euc = dist.squareform(dist.pdist(encodings, 'euclidean'))
+  hessian_cos = dist.squareform(dist.pdist(encodings, 'cosine'))
   encodings = encodings[0:360] if len(encodings) < 1500 else encodings[0:720]
   encodings = manual_pca(encodings)
 
   if encodings.shape[1] <= 3:
     return print_data_only(encodings, file_name)
 
-  colors = build_radial_colors(len(encodings))
-  grid = (3, 4)
+  grid = (3, 4) if grid is None else grid
   project_ops = []
 
   n = 2
@@ -99,35 +106,44 @@ def visualize_encodings(encodings, labels=None, file_name=None, cut=-1):
   project_ops.append(('MDS euclidean  N:%d' % n, mn.MDS(n, max_iter=300, n_init=1, dissimilarity='precomputed')))
   project_ops.append(('MDS cosine     N:%d' % n, mn.MDS(n, max_iter=300, n_init=1, dissimilarity='precomputed')))
 
-  hessian_euc = dist.squareform(dist.pdist(encodings, 'euclidean'))
-  hessian_cos = dist.squareform(dist.pdist(encodings, 'cosine'))
+
   # print(
   #   np.min(hessian_euc),
   #   np.min(hessian_cos),
   #   hessian_euc.size - np.count_nonzero(hessian_euc))
 
-  fig = plt.figure()
-  fig.set_size_inches(fig.get_size_inches()[0] * 3, fig.get_size_inches()[1] * 2.5)
+  plot_places = []
+  for i in range(12):
+    u, v = int(i/(skip_every-1)), i % (skip_every - 1)
+    j = v + u * skip_every + 1
+    plot_places.append(j)
+
+  fig = fig if fig is not None else plt.figure()
+  fig.set_size_inches(fig.get_size_inches()[0] * grid[0] /1.3,
+                      fig.get_size_inches()[1] * grid[1]/2.0)
 
   for i, (name, manifold) in enumerate(project_ops):
     is3d = 'N:3' in name
-    if 'grid' in FLAGS.suffix and 'MDS' in name:
+    if (fast or 'grid' in FLAGS.suffix) and 'MDS' in name:
       continue
 
     try:
-      if is3d: subplot = plt.subplot(grid[0], grid[1], 1 + i, projection='3d')
-      else: subplot = plt.subplot(grid[0], grid[1], 1 + i)
+      if is3d: subplot = plt.subplot(grid[0], grid[1], plot_places[i], projection='3d')
+      else: subplot = plt.subplot(grid[0], grid[1], plot_places[i])
 
       data_source = encodings if not _needs_hessian(manifold) else \
         (hessian_cos if 'cosine' in name else hessian_euc)
       projections = manifold.fit_transform(data_source)
-      scatter(subplot, projections, is3d, colors)
+      scatter(subplot, projections, is3d, build_radial_colors(len(data_source)))
       subplot.set_title(name)
     except:
       print(name, "Unexpected error: ", sys.exc_info()[0], sys.exc_info()[1] if len(sys.exc_info()) > 1 else '')
-  visualize_data_same(encodings, grid=grid, places=np.arange(9, 13))
+
+
+  visualize_data_same(encodings, grid=grid, places=plot_places[-4:])
   # visualize_data_same(encodings, grid=grid, places=np.arange(13, 17), dims_as_colors=True)
-  save_fig(file_name)
+  # fig.tight_layout()
+  # save_fig(file_name)
   ut.print_time('visualization finished')
 
 

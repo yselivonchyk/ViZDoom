@@ -141,8 +141,11 @@ class DoomModel:
     FLAGS.batch_size = meta['bs']
     FLAGS.input_path = meta['input_path']
     FLAGS.learning_rate = meta['lr']
+    FLAGS.stride = int(meta['str']) if 'str' in meta else 2
     self._weight_init = meta['init']
-    self._activation = tf.train.AdadeltaOptimizer if 'Adam' in meta['opt'] else tf.train.AdadeltaOptimizer
+    self._activation = tf.train.AdadeltaOptimizer \
+      if 'Adam' in meta['opt'] \
+      else tf.train.AdadeltaOptimizer
     self._activation = act.sigmoid if 'sigmoid' in meta['act'] else act.tanh
     self.layer_encoder = meta['h'][0]
     self.layer_narrow = meta['h'][1]

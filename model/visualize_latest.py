@@ -27,7 +27,7 @@ def print_data(data, fig, subplot, is_3d=True):
   else:
     subsample = data[0:360] if len(data) < 2000 else data[0:720]
     subsample = np.concatenate((subsample, subsample))[0:len(subsample)+1]
-    print(subsample.shape)
+    ut.print_info('subsample shape %s' % str(subsample.shape))
     subsample_colors = colors[0:len(subsample)]
     subplot = fig.add_subplot(subplot)
     subplot.set_title('First 360 elem')
@@ -40,17 +40,24 @@ def print_data(data, fig, subplot, is_3d=True):
 
 class EncodingVisualizer:
   def __init__(self, fig, data):
-    self.fig = fig
     self.data = data
-    self.subplot_3d = print_data(data, fig, 221)
-    self.subplot_2d = print_data(data, fig, 223, is_3d=False)
+    self.fig = fig
+    # self.subplot_3d = print_data(data, fig, 221)
+    # self.subplot_2d = print_data(data, fig, 223, is_3d=False)
+    vi.visualize_encodings(data, grid=(3, 5), skip_every=5, fast=True, fig=fig)
+    plt.subplot(155).set_title(', '.join('hold on'))
     fig.canvas.mpl_connect('button_press_event', self.on_click)
     fig.canvas.mpl_connect('pick_event', self.on_pick)
-
-    self.model = dm.DoomModel()
-    print(FLAGS.input_path)
-    self.original_data, _ = inp.get_images(FLAGS.input_path)
-    self.reconstructions = self.model.decode(data)
+    try:
+      print(FLAGS.load_from_checkpoint)
+      self.model = dm.DoomModel()
+      # print(FLAGS.input_path)
+      self.reconstructions = self.model.decode(data)
+    except:
+      ut.print_info("Model could not load from checkpoint", color=31)
+      ut.print_info('INPUT: %s' % FLAGS.input_path.split('/')[-3])
+      self.original_data, _ = inp.get_images(FLAGS.input_path)
+      self.reconstructions = np.zeros(self.original_data.shape).astype(np.uint8)
 
   def on_pick(self, event):
     print(event)
@@ -60,26 +67,9 @@ class EncodingVisualizer:
     orig = self.original_data[ind]
     reco = self.reconstructions[ind]
     column_picture, height = vi.stitch_images(orig, reco)
-    picture = vi.reshape_images(column_picture, height, proportion=2)
-    plt.subplot(122).set_title(', '.join(map(str, ind)))
-    plt.subplot(122).imshow(picture)
-    plt.show()
-
-  def _print_projection(self):
-    proj = self.subplot_3d.get_proj()
-    print(proj.shape)
-    for i, ar in enumerate(proj):
-      print(' '.join(map(lambda x: '%+.4f' % x, ar)))
-    proj = proj[[0, 1, 3]]
-    projected = np.matmul(self.data, proj)
-    dlen = len(self.data)
-    colors = np.repeat(np.arange(0, 360), int(dlen / 360) + 1)[0:dlen]
-    colors = colors[0:dlen]
-    self.subplot_proj.clear()
-    self.subplot_proj.scatter(projected[:, 0], projected[:, 2], c=colors,
-                              cmap=plt.cm.Spectral, picker=5)
-    self.fig.add_subplot(424).clear()
-    self.fig.add_subplot(424).scatter(projected[:, 0], projected[:, 2], c=colors)
+    picture = vi.reshape_images(column_picture, height, proportion=3)
+    plt.subplot(155).set_title(', '.join(map(str, ind)))
+    plt.subplot(155).imshow(picture)
     plt.show()
 
   def on_click(self, event):
@@ -88,29 +78,30 @@ class EncodingVisualizer:
 
 def visualize_latest_from_visualization_folder():
   latest_file = ut.get_latest_file(filter=r'.*\d+\.txt$')
-  print(latest_file)
+  ut.print_info('Encoding file: %s' % latest_file.split('/')[-1])
   data = np.loadtxt(latest_file)  # [0:360]
-  vi.visualize_encodings(data)
+  vi.visualize_encodings(data, fast=True)
+  plt.title('Title')
+  plt.show()
 
-# if __name__ == '__main__':
-#   FLAGS.load_from_checkpoint = './tmp/doom_bs__act|sigmoid__bs|30__h|500|3|100__init|na__inp|cbd4__lr|0.0004__opt|AO'
-#   latest_file = ut.get_latest_file(folder=FLAGS.load_from_checkpoint, filter=r'.*\d+\.txt$')
-#   print(latest_file)
-#   data = np.loadtxt(latest_file)  # [0:360]
-#
-#   fig = plt.figure()
-#   fig.set_size_inches(fig.get_size_inches()[0] * 2, fig.get_size_inches()[1] * 2)
-#   entity = EncodingVisualizer(fig, data)
-#   fig.tight_layout()
-#
-#   plt.show()
+
+def visualize_from_checkpoint(checkpoint, epoch=None):
+  FLAGS.load_from_checkpoint = checkpoint
+  file_filter = r'.*\d+\.txt$' if epoch is None else r'.*e\|%d.*' % epoch
+  latest_file = ut.get_latest_file(folder=FLAGS.load_from_checkpoint, filter=file_filter)
+  ut.print_info('Encoding file: %s' % latest_file.split('/')[-1])
+  data = np.loadtxt(latest_file)
+  fig = plt.figure()
+  fig.set_size_inches(fig.get_size_inches()[0] * 2, fig.get_size_inches()[1] * 2)
+  entity = EncodingVisualizer(fig, data)
+  # fig.tight_layout()
+  plt.show()
+
 
 if __name__ == '__main__':
-  visualize_latest_from_visualization_folder()
-
-  # FLAGS.load_from_checkpoint = './tmp/doom_bs__act|sigmoid__bs|30__h|500|12|500__init|na__inp|8pd3__lr|0.0004__opt|AO'
-  # latest_file = ut.get_latest_file(folder=FLAGS.load_from_checkpoint, filter=r'.*\d+\.txt$')
-  # print(latest_file[-15:], latest_file)
-  # data = np.loadtxt(latest_file)  # [0:360]
-  # vi.visualize_encodings(data)
-  # plt.show()
+  # visualize_latest_from_visualization_folder()
+  visualize_from_checkpoint(
+    checkpoint='./tmp/doom_bs__act|sigmoid__bs|20__h|500|5|500__init|na__inp' \
+                              '|cbd4__lr|0.0004__opt|AO',
+    epoch=250
+  )

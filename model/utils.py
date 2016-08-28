@@ -270,6 +270,8 @@ def get_latest_file(folder="./visualizations/", filter=None):
         if not latest_mod_time or modification_time > latest_mod_time:
           latest_mod_time = modification_time
           latest_file = file_path
+  if latest_file is None:
+    print_info('Could not find file matching %s' % str(filter))
   return latest_file
 
 
