@@ -42,16 +42,13 @@ class EncodingVisualizer:
   def __init__(self, fig, data):
     self.data = data
     self.fig = fig
-    # self.subplot_3d = print_data(data, fig, 221)
-    # self.subplot_2d = print_data(data, fig, 223, is_3d=False)
-    vi.visualize_encodings(data, grid=(3, 5), skip_every=5, fast=True, fig=fig)
+    vi.visualize_encodings(data, grid=(3, 5), skip_every=5, fast=fast, fig=fig, interactive=True)
     plt.subplot(155).set_title(', '.join('hold on'))
     fig.canvas.mpl_connect('button_press_event', self.on_click)
     fig.canvas.mpl_connect('pick_event', self.on_pick)
     try:
-      print(FLAGS.load_from_checkpoint)
+      ut.print_info('Checkpoint: %s' % FLAGS.load_from_checkpoint)
       self.model = dm.DoomModel()
-      # print(FLAGS.input_path)
       self.reconstructions = self.model.decode(data)
     except:
       ut.print_info("Model could not load from checkpoint", color=31)
@@ -80,8 +77,10 @@ def visualize_latest_from_visualization_folder():
   latest_file = ut.get_latest_file(filter=r'.*\d+\.txt$')
   ut.print_info('Encoding file: %s' % latest_file.split('/')[-1])
   data = np.loadtxt(latest_file)  # [0:360]
-  vi.visualize_encodings(data, fast=True)
-  plt.title('Title')
+  fig = plt.figure()
+  vi.visualize_encodings(data, fast=fast, fig=fig,  interactive=True)
+  fig.suptitle(latest_file.split('/')[-1])
+  fig.tight_layout()
   plt.show()
 
 
@@ -98,10 +97,11 @@ def visualize_from_checkpoint(checkpoint, epoch=None):
   plt.show()
 
 
+fast = True
 if __name__ == '__main__':
-  # visualize_latest_from_visualization_folder()
-  visualize_from_checkpoint(
-    checkpoint='./tmp/doom_bs__act|sigmoid__bs|20__h|500|5|500__init|na__inp' \
-                              '|cbd4__lr|0.0004__opt|AO',
-    epoch=250
-  )
+  visualize_latest_from_visualization_folder()
+  # visualize_from_checkpoint(
+  #   checkpoint='./tmp/doom_bs__act|sigmoid__bs|20__h|500|5|500__init|na__inp' \
+  #                             '|cbd4__lr|0.0004__opt|AO',
+  #   epoch=250
+  # )

@@ -19,6 +19,7 @@ Axes3D
 
 FLAGS = tf.app.flags.FLAGS
 COLOR_MAP = plt.cm.Spectral
+PICKER_SENSITIVITY = 5
 
 def scatter(plot, data, is3d, colors):
   if is3d:
@@ -26,9 +27,12 @@ def scatter(plot, data, is3d, colors):
                  marker='.',
                  c=colors,
                  cmap=plt.cm.Spectral,
-                 picker=5)
+                 picker=PICKER_SENSITIVITY)
   else:
-    plot.scatter(data[:, 0], data[:, 1], c=colors, cmap=plt.cm.Spectral, picker=5)
+    plot.scatter(data[:, 0], data[:, 1],
+                 c=colors,
+                 cmap=plt.cm.Spectral,
+                 picker=PICKER_SENSITIVITY)
 
 
 def print_data_only(data, file_name):
@@ -75,15 +79,14 @@ def manual_pca(data):
 
 def _needs_hessian(manifold):
   if hasattr(manifold, 'dissimilarity') and manifold.dissimilarity == 'precomputed':
-    print(True)
     return True
   if hasattr(manifold, 'metric') and manifold.metric == 'precomputed':
-    print(True)
     return True
   return False
 
 
-def visualize_encodings(encodings, file_name=None, grid=None, skip_every=999, fast=False, fig=None):
+def visualize_encodings(encodings, file_name=None,
+                        grid=None, skip_every=999, fast=False, fig=None, interactive=False):
   hessian_euc = dist.squareform(dist.pdist(encodings, 'euclidean'))
   hessian_cos = dist.squareform(dist.pdist(encodings, 'cosine'))
   encodings = encodings[0:360] if len(encodings) < 1500 else encodings[0:720]
@@ -119,7 +122,7 @@ def visualize_encodings(encodings, file_name=None, grid=None, skip_every=999, fa
     plot_places.append(j)
 
   fig = fig if fig is not None else plt.figure()
-  fig.set_size_inches(fig.get_size_inches()[0] * grid[0] /1.3,
+  fig.set_size_inches(fig.get_size_inches()[0] * grid[0] /1.,
                       fig.get_size_inches()[1] * grid[1]/2.0)
 
   for i, (name, manifold) in enumerate(project_ops):
@@ -143,7 +146,8 @@ def visualize_encodings(encodings, file_name=None, grid=None, skip_every=999, fa
   visualize_data_same(encodings, grid=grid, places=plot_places[-4:])
   # visualize_data_same(encodings, grid=grid, places=np.arange(13, 17), dims_as_colors=True)
   # fig.tight_layout()
-  # save_fig(file_name)
+  if not interactive:
+    save_fig(file_name)
   ut.print_time('visualization finished')
 
 
@@ -261,14 +265,24 @@ def data_to_colors(data, indexes=None):
   return color_data
 
 
-def visualize_encoding(encodings, folder=None, meta={}, cut=-1):
+def visualize_encoding(encodings, folder=None, meta={}, oriringal=None, reconstruction=None):
   # ut.print_info('VISUALIZATION cutting the encodings', color=31)
   # encodings = encodings[1:360]
   file_path = None
   if folder:
     meta['postfix'] = 'pca'
     file_path = ut.to_file_name(meta, folder, 'png')
-  visualize_encodings(encodings, file_name=file_path, cut=cut)
+  if oriringal is not None:
+    assert len(oriringal) == len(reconstruction)
+    fig = plt.figure()
+
+    print(oriringal.shape, reconstruction.shape)
+    column_picture, height = stitch_images(oriringal, reconstruction)
+    picture = reshape_images(column_picture, height, proportion=3)
+    plt.subplot(155).imshow(picture)
+    visualize_encodings(encodings, file_name=file_path, fig=fig, grid=(3, 5), skip_every=5)
+  else:
+    visualize_encodings(encodings, file_name=file_path)
 
 
 def visualize_available_data(root='./', reembed=True, with_mds=False):

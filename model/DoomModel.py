@@ -169,7 +169,9 @@ class DoomModel:
           self._encdec_op = self.decoder(
             self._encode_op,
             weight_init=self._weight_init)
-          self._visualize_op = tf.cast(tf.mul(self._encdec_op, tf.constant(255.)), tf.uint8)
+          self._visualize_op = tf.cast(tf.mul(
+            tf.reshape(self._encdec_op, batch_shape),
+            tf.constant(255.)), tf.uint8)
 
     self._loss = self.square_loss(self._encdec_op, self._output_placeholder)
     optimizer = self._optimizer(learning_rate=FLAGS.learning_rate)
@@ -253,13 +255,12 @@ class DoomModel:
   def get_past_epochs():
     return int(bookkeeper.global_step().eval() / _epoch_size)
 
-  @staticmethod
-  def save_encodings(encodings):
+  def save_encodings(self, encodings, visual_set, reconstruction):
     epochs_past = DoomModel.get_past_epochs()
     meta = {'suf': 'encodings', 'e': int(epochs_past)}
     projection_file = ut.to_file_name(meta, FLAGS.save_path, 'txt')
     np.savetxt(projection_file, encodings)
-    vis.visualize_encoding(encodings, FLAGS.save_path, meta)
+    vis.visualize_encoding(encodings, FLAGS.save_path, meta, visual_set, reconstruction)
 
   def checkpoint(self, runner, sess):
     epochs_past = int(bookkeeper.global_step().eval() / _epoch_size)
@@ -317,8 +318,8 @@ class DoomModel:
         # train_set = inp.permute_data(original_set)
         train_set = inp.permute_array_in_series(original_set, FLAGS.stride)
 
-        if FLAGS.visualize and DoomModel.is_stopping_point(current_epoch, epochs_to_train,
-                                          stop_x_times=FLAGS.vis_substeps):
+        if FLAGS.visualize and DoomModel.is_stopping_point(
+          current_epoch, epochs_to_train, stop_x_times=FLAGS.vis_substeps):
           epoch_reconstruction.append(self.process_in_batches(
             sess, (self._input_placeholder, self._output_placeholder), self._visualize_op, visual_set))
 
@@ -342,7 +343,9 @@ class DoomModel:
           self.checkpoint(_runner, sess)
         if DoomModel.is_stopping_point(current_epoch, epochs_to_train, FLAGS.save_encodings_every):
           encoding = self.process_in_batches(sess, placeholders, self._encode_op, original_set)
-          self.save_encodings(encoding)
+          visual_reconstruction = self.process_in_batches(
+            sess, (self._input_placeholder, self._output_placeholder), self._visualize_op, visual_set)
+          self.save_encodings(encoding, visual_set, visual_reconstruction)
 
       meta['acu'] = int(np.min(accuracy_by_epoch))
       meta['e'] = self.get_past_epochs()
@@ -370,7 +373,7 @@ if __name__ == '__main__':
   # FLAGS.load_from_checkpoint = './tmp/doom_bs__act|sigmoid__bs|20__h|500|5|500__init|na__inp|cbd4__lr|0.0004__opt|AO'
   model = DoomModel()
   model.set_layer_sizes([500, 12, 500])
-  model.train(2)
+  model.train(10)
   # exit(0)
   # for i in range(10):
   #   model.train(1000)
