@@ -226,10 +226,10 @@ def visualize_data_same(data, grid, places):
 
     if len(projection) == 2:
       subplot = plt.subplot(grid[0], grid[1], places[i])
-      subplot.scatter(points[0], points[1], c=color, cmap=COLOR_MAP)
+      subplot.scatter(points[0], points[1], c=color, cmap=COLOR_MAP, picker=PICKER_SENSITIVITY)
     else:
       subplot = plt.subplot(grid[0], grid[1], places[i], projection='3d')
-      subplot.scatter(points[0], points[1], points[2], c=color, cmap=COLOR_MAP)
+      subplot.scatter(points[0], points[1], points[2], c=color, cmap=COLOR_MAP, picker=PICKER_SENSITIVITY)
     subplot.set_title('Data %s' % str(projection))
 
 

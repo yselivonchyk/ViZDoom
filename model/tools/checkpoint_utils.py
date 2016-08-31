@@ -20,7 +20,7 @@ from __future__ import division
 from __future__ import print_function
 
 import six
-
+import tensorflow as tf
 from tensorflow.python.ops import gen_io_ops
 from tensorflow.python.ops import state_ops
 from tensorflow.python.ops import variable_scope as vs
@@ -39,8 +39,12 @@ __all__ = [
 
 def _get_checkpoint_filename(filepattern):
   """Returns checkpoint filename given directory or specific filepattern."""
-  if gfile.IsDirectory(filepattern):
-    return saver.latest_checkpoint(filepattern)
+  import os
+  if os.path.isdir(filepattern):
+    print('nope', filepattern)
+    res = tf.train.latest_checkpoint(filepattern)
+    print('but here', res)
+    return res
   return filepattern
 
 

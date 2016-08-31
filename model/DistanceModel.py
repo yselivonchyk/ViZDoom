@@ -25,27 +25,26 @@ tf.app.flags.DEFINE_boolean('visualize', True, 'Create visualization of decoded 
 tf.app.flags.DEFINE_integer('vis_substeps', 10, 'Use INT intermediate images')
 
 tf.app.flags.DEFINE_boolean('load_state', True, 'Create visualization of ')
-tf.app.flags.DEFINE_integer('save_every', 1000, 'Save model state every INT epochs')
+tf.app.flags.DEFINE_integer('save_every', 200, 'Save model state every INT epochs')
 tf.app.flags.DEFINE_integer('save_encodings_every', 100, 'Save model state every INT epochs')
 tf.app.flags.DEFINE_integer('batch_size', 30, 'Batch size')
 
 tf.app.flags.DEFINE_float('learning_rate', 0.0004, 'Create visualization of ')
-tf.app.flags.DEFINE_string('input_path', '../data/tmp/8_pos_delay/img/', 'input folder')
-tf.app.flags.DEFINE_integer('stride', 2, 'Data is permuted in series of INT consecutive inputs')
+tf.app.flags.DEFINE_string('input_path', '../data/tmp/8_pos_delay_3/img/', 'input folder')
+tf.app.flags.DEFINE_integer('stride', 3, 'Data is permuted in series of INT consecutive inputs')
 
 tf.app.flags.DEFINE_string('load_from_checkpoint', None, 'where to save logs.')
-tf.app.flags.DEFINE_string('suffix', 'run', 'Suffix to use to distinguish models by purpose')
+tf.app.flags.DEFINE_string('suffix', 'doom_bs', 'Suffix to use to distinguish models by purpose')
 
 
 FLAGS = tf.app.flags.FLAGS
 
 
 class DoomModel:
-  model_id = 'bs'
   _epoch_size = None
   _test_size = None
 
-  layer_narrow = 3
+  layer_narrow = 10
   layer_encoder = 500
   layer_decoder = 500
 
@@ -92,7 +91,7 @@ class DoomModel:
   def decoder(self, input_tensor=None, weight_init=tf.truncated_normal):
     return (pt.wrap(input_tensor)
             .fully_connected(self.layer_decoder)
-            .fully_connected(self._image_shape[0] * self._image_shape[1] * self._image_shape[2],
+            .fully_connected(_image_shape[0] * _image_shape[1] * _image_shape[2],
                              init=weight_init))
 
   # MISC
@@ -115,7 +114,7 @@ class DoomModel:
   def get_meta(self, meta=None):
     meta = meta if meta else {}
 
-    meta['postf'] = self.model_id
+    meta['suf'] = FLAGS.suffix
     meta['act'] = self._activation.func
     meta['lr'] = FLAGS.learning_rate
     meta['init'] = self._weight_init
@@ -174,6 +173,7 @@ class DoomModel:
             .apply(tf.mul, 255)\
             .apply(tf.cast, tf.uint8)
 
+
     self._loss = self.square_loss(self._encdec_op, self._output_placeholder)
     optimizer = self._optimizer(learning_rate=FLAGS.learning_rate)
     self._train_op = pt.apply_optimizer(optimizer, losses=[self._loss])
@@ -195,9 +195,9 @@ class DoomModel:
           .fully_connected(self.layer_decoder, init=w_decoder, bias_init=b_decoder)
           .fully_connected(image_shape[0] * image_shape[1] * image_shape[2],
                            init=w_output, bias_init=b_output)
-          .reshape((1, image_shape[0], image_shape[1], image_shape[2])))
+          .reshape((1, image_shape[0], image_shape[1], image_shape[2]))).tensor
       self._decode_op = raw_decoding_op.apply(tf.mul, 255).apply(tf.cast, tf.uint8)
-      # self._decode_op = tf.cast(tf.mul(raw_decoding_op, tf.constant(255.)), tf.uint8)
+      self._decode_op = tf.cast(tf.mul(raw_decoding_op, tf.constant(255.)), tf.uint8)
 
   def decode(self, data):
     assert data.shape[1] == self.layer_narrow
@@ -216,7 +216,7 @@ class DoomModel:
 
   def get_variable(self, name):
     assert FLAGS.load_from_checkpoint
-    var = ch_utils.load_variable( tf.train.latest_checkpoint(FLAGS.load_from_checkpoint), name)
+    var = ch_utils.load_variable(FLAGS.save_path, name)
     return var
 
   # TRAIN
@@ -239,8 +239,8 @@ class DoomModel:
     original_data = inp.rescale_ds(original_data, activation_func_bounds.min, activation_func_bounds.max)
 
     # print(original_data.shape, labels.shape)
-    global _epoch_size, _test_size
-    self._image_shape = inp.get_image_shape(FLAGS.input_path)
+    global _epoch_size, _test_size, _image_shape
+    _image_shape = inp.get_image_shape(FLAGS.input_path)
     _epoch_size = len(original_data) // FLAGS.batch_size
     _test_size = len(original_data) // FLAGS.batch_size
 
@@ -299,7 +299,7 @@ class DoomModel:
 
   def train(self, epochs_to_train=5):
     meta = self.get_meta()
-    ut.print_time('train started: \n%s' % ut.to_file_name(meta))
+    ut.print_time('train started: %s' % ut.to_file_name(meta))
     # return meta, np.random.randn(epochs_to_train)
     ut.configure_folders(FLAGS, meta)
     accuracy_by_epoch, epoch_reconstruction = [], []
@@ -352,7 +352,7 @@ class DoomModel:
       meta['acu'] = int(np.min(accuracy_by_epoch))
       meta['e'] = self.get_past_epochs()
       ut.reconstruct_images_epochs(np.asarray(epoch_reconstruction), visual_set,
-                                   save_params=meta, img_shape=self._image_shape)
+                                   save_params=meta, img_shape=_image_shape)
 
     ut.print_time('Best Quality: %f for %s' % (np.min(accuracy_by_epoch), ut.to_file_name(meta)))
     return meta, accuracy_by_epoch
@@ -369,45 +369,6 @@ def parse_params():
 
 if __name__ == '__main__':
   # FLAGS.load_from_checkpoint = './tmp/doom_bs__act|sigmoid__bs|20__h|500|5|500__init|na__inp|cbd4__lr|0.0004__opt|AO'
-  epochs = 100
-  import sys
-
   model = DoomModel()
-  args = dict([arg.split('=', maxsplit=1) for arg in sys.argv[1:]])
-  print(args)
-  if 'epochs' in args:
-    epochs = int(args['epochs'])
-    ut.print_info('epochs: %d' % epochs, color=36)
-  if 'stride' in args:
-    FLAGS.stride = int(args['stride'])
-  if 'input' in args:
-    parts = FLAGS.input_path.split('/')
-    parts[-3] = args['input']
-    FLAGS.input_path = '/'.join(parts)
-    ut.print_info('input %s' % FLAGS.input_path, color=36)
-  if 'h' in args:
-    layers = list(map(int, args['h'].split('/')))
-    ut.print_info('layers %s' % str(layers), color=36)
-    model.set_layer_sizes(layers)
-  #
-  # model = DoomModel()
-  # model.train(epochs)
-  #
-
-  epochs = 5000
-  FLAGS.input_path = '../data/tmp/8_pos_delay/img/'
-  model = DoomModel()
-  model.set_layer_sizes([500, 3, 500])
-  model.train(epochs)
-
-  epochs = 5000
-  FLAGS.input_path = '../data/tmp/8_pos_delay_3/img/'
-  model = DoomModel()
-  model.set_layer_sizes([500, 3, 500])
-  model.train(epochs)
-
-  epochs = 5000
-  FLAGS.input_path = '../data/tmp/8_pos_delay/img/'
-  model = DoomModel()
-  model.set_layer_sizes([500, 8, 500])
-  model.train(epochs)
+  model.set_layer_sizes([500, 12, 500])
+  model.train(20)

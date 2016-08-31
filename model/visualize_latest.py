@@ -5,6 +5,8 @@ import input as inp
 import numpy as np
 import matplotlib.pyplot as plt
 import tensorflow as tf
+import os
+
 from mpl_toolkits.mplot3d import Axes3D
 
 # Next line to silence pyflakes. This import is needed.
@@ -45,14 +47,16 @@ class EncodingVisualizer:
     # fig.canvas.mpl_connect('button_press_event', self.on_click)
     fig.canvas.mpl_connect('pick_event', self.on_pick)
     try:
+    # if True:
       ut.print_info('Checkpoint: %s' % FLAGS.load_from_checkpoint)
       self.model = dm.DoomModel()
       self.reconstructions = self.model.decode(data)
     except:
       ut.print_info("Model could not load from checkpoint %s" % str(sys.exc_info()), color=31)
-      ut.print_info('INPUT: %s' % FLAGS.input_path.split('/')[-3])
-      self.original_data, _ = inp.get_images(FLAGS.input_path)
       self.reconstructions = np.zeros(self.original_data.shape).astype(np.uint8)
+    ut.print_info('INPUT: %s' % FLAGS.input_path.split('/')[-3])
+    self.original_data, _ = inp.get_images(FLAGS.input_path)
+
 
   def on_pick(self, event):
     print(event)
@@ -86,8 +90,8 @@ def visualize_latest_from_visualization_folder(folder='./visualizations/', file=
 def visualize_from_checkpoint(checkpoint, epoch=None):
   FLAGS.load_from_checkpoint = checkpoint
   file_filter = r'.*\d+\.txt$' if epoch is None else r'.*e\|%d.*' % epoch
-  latest_file = ut.get_latest_file(folder=FLAGS.load_from_checkpoint, filter=file_filter)
-  # print(latest_file)
+  latest_file = ut.get_latest_file(folder=checkpoint, filter=file_filter)
+  print(latest_file)
   ut.print_info('Encoding file: %s' % latest_file.split('/')[-1])
   data = np.loadtxt(latest_file)
   fig = plt.figure()
@@ -102,11 +106,16 @@ fast = True
 if __name__ == '__main__':
   import sys
 
+
+
   path = sys.argv[1] if len(sys.argv) > 1 else None
   epoch = int(sys.argv[2]) if len(sys.argv) > 2 else None
 
   path = './tmp/grid_h_bs__act|sigmoid__bs|30__h|500|12|500__init|na__inp|8pd__lr|0.0004__opt|AO__seq|02/'
-  path = './tmp/doom_bs__act|sigmoid__bs|30__h|500|12|500__init|na__inp|8pd3__lr|0.0004__opt|AO/'
+  # path = './tmp/doom_bs__act|sigmoid__bs|30__h|500|12|500__init|na__inp|8pd3__lr|0.0004__opt|AO/'
+
+  # import os
+  # print('really? ', )
 
   if path is None:
     ut.print_info('Visualizing latest file from visualization folder')
@@ -121,6 +130,7 @@ if __name__ == '__main__':
 
   is_checkpoint = '/tmp' in path
   if is_checkpoint:
+    print('so', path)
     ut.print_info('Visualizing checkpoint data')
     visualize_from_checkpoint(checkpoint=path, epoch=epoch)
   else:
