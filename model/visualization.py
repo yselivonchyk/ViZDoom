@@ -35,15 +35,17 @@ def scatter(plot, data, is3d, colors):
                  picker=PICKER_SENSITIVITY)
 
 
-def print_data_only(data, file_name, fig=None):
+def print_data_only(data, file_name, fig=None, interactive=False):
   fig = fig if fig is not None else plt.figure()
   subplot_number = 121 if fig is not None else 111
   fig.set_size_inches(fig.get_size_inches()[0] * 2, fig.get_size_inches()[1] * 1)
 
   colors = build_radial_colors(len(data))
   subplot = plt.subplot(subplot_number, projection='3d')
-  subplot.scatter(data[:, 0], data[:, 1], data[:, 2], c=colors, cmap=COLOR_MAP)
-  save_fig(file_name)
+  subplot.scatter(data[:, 0], data[:, 1], data[:, 2], c=colors,
+                  cmap=COLOR_MAP, picker=PICKER_SENSITIVITY)
+  if not interactive:
+    save_fig(file_name)
 
 
 def create_gif_from_folder(folder):
@@ -86,14 +88,43 @@ def _needs_hessian(manifold):
   return False
 
 
+def visualize_encoding(encodings, folder=None, meta={}, original=None, reconstruction=None):
+  if np.max(original) < 10:
+    original = (original * 255).astype(np.uint8)
+  # print('np', np.max(original), np.max(reconstruction), np.min(original), np.min(reconstruction),
+  #       original.dtype, reconstruction.dtype)
+  file_path = None
+  if folder:
+    meta['postfix'] = 'pca'
+    file_path = ut.to_file_name(meta, folder, 'png')
+
+  encodings = manual_pca(encodings)
+
+  if original is not None:
+    assert len(original) == len(reconstruction)
+    fig = plt.figure()
+
+    column_picture, height = stitch_images(original, reconstruction)
+    if encodings.shape[1] <= 3:
+      picture = reshape_images(column_picture, height, proportion=1)
+      plt.subplot(122).imshow(picture)
+    else:
+      picture = reshape_images(column_picture, height, proportion=3)
+      plt.subplot(155).imshow(picture)
+    visualize_encodings(encodings, file_name=file_path, fig=fig, grid=(3, 5), skip_every=5)
+  else:
+    visualize_encodings(encodings, file_name=file_path)
+
+
 def visualize_encodings(encodings, file_name=None,
                         grid=None, skip_every=999, fast=False, fig=None, interactive=False):
-  hessian_euc = dist.squareform(dist.pdist(encodings, 'euclidean'))
-  hessian_cos = dist.squareform(dist.pdist(encodings, 'cosine'))
-  encodings = encodings[0:360] if len(encodings) < 1500 else encodings[0:720]
+  hessian_euc = dist.squareform(dist.pdist(encodings[0:720], 'euclidean'))
+  hessian_cos = dist.squareform(dist.pdist(encodings[0:720], 'cosine'))
+  # encodings = encodings[0:360] if len(encodings) < 1500 else encodings[0:720]
+  encodings = encodings[0:720]
   encodings = manual_pca(encodings)
   if encodings.shape[1] <= 3:
-    return print_data_only(encodings, file_name, fig=fig)
+    return print_data_only(encodings, file_name, fig=fig, interactive=interactive)
 
   grid = (3, 4) if grid is None else grid
   project_ops = []
@@ -263,34 +294,6 @@ def data_to_colors(data, indexes=None):
   color_data = ["#%06x" % c for c in color_data]
   # print('color example', color_data[0])
   return color_data
-
-
-def visualize_encoding(encodings, folder=None, meta={}, original=None, reconstruction=None):
-  if np.max(original) < 10:
-    original = (original * 255).astype(np.uint8)
-  # print('np', np.max(original), np.max(reconstruction), np.min(original), np.min(reconstruction),
-  #       original.dtype, reconstruction.dtype)
-  file_path = None
-  if folder:
-    meta['postfix'] = 'pca'
-    file_path = ut.to_file_name(meta, folder, 'png')
-
-  encodings = manual_pca(encodings)
-
-  if original is not None:
-    assert len(original) == len(reconstruction)
-    fig = plt.figure()
-
-    column_picture, height = stitch_images(original, reconstruction)
-    if encodings.shape[1] <= 3:
-      picture = reshape_images(column_picture, height, proportion=1)
-      plt.subplot(122).imshow(picture)
-    else:
-      picture = reshape_images(column_picture, height, proportion=3)
-      plt.subplot(155).imshow(picture)
-    visualize_encodings(encodings, file_name=file_path, fig=fig, grid=(3, 5), skip_every=5)
-  else:
-    visualize_encodings(encodings, file_name=file_path)
 
 
 def visualize_available_data(root='./', reembed=True, with_mds=False):

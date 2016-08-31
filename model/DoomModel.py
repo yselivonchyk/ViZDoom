@@ -25,7 +25,7 @@ tf.app.flags.DEFINE_boolean('visualize', True, 'Create visualization of decoded 
 tf.app.flags.DEFINE_integer('vis_substeps', 10, 'Use INT intermediate images')
 
 tf.app.flags.DEFINE_boolean('load_state', True, 'Create visualization of ')
-tf.app.flags.DEFINE_integer('save_every', 200, 'Save model state every INT epochs')
+tf.app.flags.DEFINE_integer('save_every', 1000, 'Save model state every INT epochs')
 tf.app.flags.DEFINE_integer('save_encodings_every', 100, 'Save model state every INT epochs')
 tf.app.flags.DEFINE_integer('batch_size', 30, 'Batch size')
 
@@ -372,15 +372,42 @@ if __name__ == '__main__':
   epochs = 100
   import sys
 
-  args = dict([arg.split('=', maxsplit=1) for arg in sys.argv[2:]])
+  model = DoomModel()
+  args = dict([arg.split('=', maxsplit=1) for arg in sys.argv[1:]])
   print(args)
   if 'epochs' in args:
     epochs = int(args['epochs'])
+    ut.print_info('epochs: %d' % epochs, color=36)
   if 'stride' in args:
     FLAGS.stride = int(args['stride'])
+  if 'input' in args:
+    parts = FLAGS.input_path.split('/')
+    parts[-3] = args['input']
+    FLAGS.input_path = '/'.join(parts)
+    ut.print_info('input %s' % FLAGS.input_path, color=36)
+  if 'h' in args:
+    layers = list(map(int, args['h'].split('/')))
+    ut.print_info('layers %s' % str(layers), color=36)
+    model.set_layer_sizes(layers)
+  #
+  # model = DoomModel()
+  # model.train(epochs)
+  #
 
-  if len(sys.argv) > 1:
-    epochs = int(sys.argv[1])
+  epochs = 5000
+  FLAGS.input_path = '../data/tmp/8_pos_delay/img/'
   model = DoomModel()
   model.set_layer_sizes([500, 3, 500])
-  model.train(100)
+  model.train(epochs)
+
+  epochs = 5000
+  FLAGS.input_path = '../data/tmp/8_pos_delay_3/img/'
+  model = DoomModel()
+  model.set_layer_sizes([500, 3, 500])
+  model.train(epochs)
+
+  epochs = 5000
+  FLAGS.input_path = '../data/tmp/8_pos_delay/img/'
+  model = DoomModel()
+  model.set_layer_sizes([500, 8, 500])
+  model.train(epochs)

@@ -1,5 +1,3 @@
-import os
-import re
 import visualization as vi
 import utils as ut
 import DoomModel as dm
@@ -44,14 +42,14 @@ class EncodingVisualizer:
     self.fig = fig
     vi.visualize_encodings(data, grid=(3, 5), skip_every=5, fast=fast, fig=fig, interactive=True)
     plt.subplot(155).set_title(', '.join('hold on'))
-    fig.canvas.mpl_connect('button_press_event', self.on_click)
+    # fig.canvas.mpl_connect('button_press_event', self.on_click)
     fig.canvas.mpl_connect('pick_event', self.on_pick)
     try:
       ut.print_info('Checkpoint: %s' % FLAGS.load_from_checkpoint)
       self.model = dm.DoomModel()
       self.reconstructions = self.model.decode(data)
     except:
-      ut.print_info("Model could not load from checkpoint", color=31)
+      ut.print_info("Model could not load from checkpoint %s" % str(sys.exc_info()), color=31)
       ut.print_info('INPUT: %s' % FLAGS.input_path.split('/')[-3])
       self.original_data, _ = inp.get_images(FLAGS.input_path)
       self.reconstructions = np.zeros(self.original_data.shape).astype(np.uint8)
@@ -73,13 +71,14 @@ class EncodingVisualizer:
     print('click', event)
 
 
-def visualize_latest_from_visualization_folder():
-  latest_file = ut.get_latest_file(filter=r'.*\d+\.txt$')
-  ut.print_info('Encoding file: %s' % latest_file.split('/')[-1])
-  data = np.loadtxt(latest_file)  # [0:360]
+def visualize_latest_from_visualization_folder(folder='./visualizations/', file=None):
+  if file is None:
+    file = ut.get_latest_file(folder, filter=r'.*\d+\.txt$')
+    ut.print_info('Encoding file: %s' % file.split('/')[-1])
+  data = np.loadtxt(file)  # [0:360]
   fig = plt.figure()
   vi.visualize_encodings(data, fast=fast, fig=fig,  interactive=True)
-  fig.suptitle(latest_file.split('/')[-1])
+  fig.suptitle(file.split('/')[-1])
   fig.tight_layout()
   plt.show()
 
@@ -88,20 +87,42 @@ def visualize_from_checkpoint(checkpoint, epoch=None):
   FLAGS.load_from_checkpoint = checkpoint
   file_filter = r'.*\d+\.txt$' if epoch is None else r'.*e\|%d.*' % epoch
   latest_file = ut.get_latest_file(folder=FLAGS.load_from_checkpoint, filter=file_filter)
+  # print(latest_file)
   ut.print_info('Encoding file: %s' % latest_file.split('/')[-1])
   data = np.loadtxt(latest_file)
   fig = plt.figure()
   fig.set_size_inches(fig.get_size_inches()[0] * 2, fig.get_size_inches()[1] * 2)
   entity = EncodingVisualizer(fig, data)
-  # fig.tight_layout()
+  fig.tight_layout()
   plt.show()
 
 
-fast = False
+fast = True
 
 if __name__ == '__main__':
-  # visualize_latest_from_visualization_folder()
-  visualize_from_checkpoint(
-    checkpoint='/Users/eselivonchyk/Downloads/AllVDimg/tmp/grid_bs__act|sigmoid__bs|100__h|500|10|500__init|na__inp|8pd3__lr|0.0004__opt|AO__seq|02',
-    epoch=2500
-  )
+  import sys
+
+  path = sys.argv[1] if len(sys.argv) > 1 else None
+  epoch = int(sys.argv[2]) if len(sys.argv) > 2 else None
+
+  path = './tmp/grid_h_bs__act|sigmoid__bs|30__h|500|12|500__init|na__inp|8pd__lr|0.0004__opt|AO__seq|02/'
+  path = './tmp/doom_bs__act|sigmoid__bs|30__h|500|12|500__init|na__inp|8pd3__lr|0.0004__opt|AO/'
+
+  if path is None:
+    ut.print_info('Visualizing latest file from visualization folder')
+    visualize_latest_from_visualization_folder()
+    exit(0)
+
+  is_embedding = '.txt' in path
+  if is_embedding:
+    ut.print_info('Visualizing encoding file')
+    visualize_latest_from_visualization_folder(file=path)
+    exit(0)
+
+  is_checkpoint = '/tmp' in path
+  if is_checkpoint:
+    ut.print_info('Visualizing checkpoint data')
+    visualize_from_checkpoint(checkpoint=path, epoch=epoch)
+  else:
+    ut.print_info('Visualizing latest from folder', color=34)
+    visualize_latest_from_visualization_folder(folder=path)
