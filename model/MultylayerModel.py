@@ -20,38 +20,42 @@ from prettytensor.tutorial import data_utils
 import DoomModel
 
 
-tf.app.flags.DEFINE_float('dropout', 0.9, 'Dropout rate for pre-hidden layer features')
-
-
 FLAGS = tf.app.flags.FLAGS
 
 
-class DropoutModel(DoomModel.DoomModel):
-  def __init__(self):
-    super(DropoutModel, self).__init__()
-    self.model_id = 'do'
+class MultylayerModel(DoomModel.DoomModel):
+  model_id = 'ml'
 
+  def __init__(self):
+    super(MultylayerModel, self).__init__()
 
   def encoder(self, input_tensor):
-    print('Dropout encoder, dropout rate: %f' % FLAGS.dropout)
     template = (pt.wrap(input_tensor)
             .flatten()
             .fully_connected(self.layer_encoder)
-            .dropout(FLAGS.dropout)
+            .fully_connected(self.layer_encoder)
             .fully_connected(self.layer_narrow))
     return template
 
-  def get_meta(self, meta=None):
-    meta = super(DropoutModel, self).get_meta()
-    meta['do'] = FLAGS.dropout
-    return meta
+  def decoder(self, input_tensor=None, weight_init=tf.truncated_normal):
+    return (pt.wrap(input_tensor)
+            .fully_connected(self.layer_decoder)
+            .fully_connected(self.layer_decoder)
+            .fully_connected(self._image_shape[0] * self._image_shape[1] * self._image_shape[2],
+                             init=weight_init))
 
-  def load_meta(self, save_path):
-    meta = super(DropoutModel, self).get_meta()
-    FLAGS.dropout = float(meta['do'])
+  # def get_meta(self, meta=None):
+  #   meta = super(MultylayerModel, self).get_meta()
+  #   return meta
+  #
+  # def load_meta(self, save_path):
+  #   meta = super(MultylayerModel, self).get_meta()
 
 
 if __name__ == '__main__':
-  model = DropoutModel()
+  epochs = 100
+  if len(sys.argv) > 1:
+    epochs = int(sys.argv[1])
+  model = MultylayerModel()
   model.set_layer_sizes([500, 12, 500])
   model.train(100)

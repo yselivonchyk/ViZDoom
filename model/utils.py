@@ -118,14 +118,14 @@ def reconstruct_images_epochs(epochs, original=None, save_params=None, img_shape
   full_picture = None
   img_shape = img_shape if img_shape is not None else _construct_img_shape(epochs[0][0])
 
-  print(original.dtype, epochs.dtype, np.max(original), np.max(epochs))
+  # print(original.dtype, epochs.dtype, np.max(original), np.max(epochs))
 
   if original.dtype != np.uint8:
     original = (original * 255).astype(np.uint8)
   if epochs.dtype != np.uint8:
     epochs = (epochs * 255).astype(np.uint8)
 
-  print('image reconstruction: ', original.dtype, epochs.dtype, np.max(original), np.max(epochs))
+  # print('image reconstruction: ', original.dtype, epochs.dtype, np.max(original), np.max(epochs))
 
   if original is not None and epochs is not None and len(epochs) >= 3:
     min_ref, max_ref = np.min(original), np.max(original)
@@ -151,11 +151,13 @@ def plot_epoch_progress(meta, data, interactive=False):
   meta['time'] = datetime.datetime.now()
   pickle.dump((meta, data), open(backup_path, "wb"))
 
-  for _, experiment in enumerate(data):
+  lines = ['--', ':', '-', '-.']
+  for j, experiment in enumerate(data):
+    line = lines[int(j / 7) % len(lines)]
     x = np.arange(0, len(experiment[1])) + 1
     accuracy = int(np.min(experiment[1]))
     label = experiment[0] if str(accuracy) in experiment[0] else experiment[0] + str(accuracy)
-    plt.semilogy(x, experiment[1], label=label, marker='.', linestyle='--')
+    plt.semilogy(x, experiment[1], label=label, marker='.', linestyle=line)
   plt.xlim([1, x[-1]])
   plt.legend(loc='best', fancybox=True, framealpha=0.5, fontsize=8)
   plt.savefig(png_path, dpi=300, facecolor='w', edgecolor='w',
@@ -219,23 +221,23 @@ def to_file_name(obj, folder=None, ext=None, append_timestamp=False):
       print_info('truncating this: %s %s' % (key, value))
       value = value[0:9]
 
-    if 'suf' in key:
-      name = str(value) + name
-      continue
-
-    if 'postf' in key:
-      postfix = '_' + str(value)
+    if 'suf' in key or 'postf' in key:
       continue
 
     name += '__%s|%s' % (key, str(value))
 
-  name += postfix
+  if 'suf' in obj:
+    prefix_value = obj['suf']
+  else:
+    prefix_value = FLAGS.suffix
+  if 'postf' in obj:
+    prefix_value += '_%s' % obj['postf']
+  name = prefix_value + name
 
   if ext:
     name += '.' + ext
   if folder:
     name = os.path.join(folder, name)
-
   return name
 
 

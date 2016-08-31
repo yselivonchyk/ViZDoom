@@ -35,12 +35,13 @@ def scatter(plot, data, is3d, colors):
                  picker=PICKER_SENSITIVITY)
 
 
-def print_data_only(data, file_name):
-  fig = plt.figure()
+def print_data_only(data, file_name, fig=None):
+  fig = fig if fig is not None else plt.figure()
+  subplot_number = 121 if fig is not None else 111
   fig.set_size_inches(fig.get_size_inches()[0] * 2, fig.get_size_inches()[1] * 1)
 
   colors = build_radial_colors(len(data))
-  subplot = plt.subplot(111, projection='3d')
+  subplot = plt.subplot(subplot_number, projection='3d')
   subplot.scatter(data[:, 0], data[:, 1], data[:, 2], c=colors, cmap=COLOR_MAP)
   save_fig(file_name)
 
@@ -87,13 +88,12 @@ def _needs_hessian(manifold):
 
 def visualize_encodings(encodings, file_name=None,
                         grid=None, skip_every=999, fast=False, fig=None, interactive=False):
-  hessian_euc = dist.squareform(dist.pdist(encodings[0:720], 'euclidean'))
-  hessian_cos = dist.squareform(dist.pdist(encodings[0:720], 'cosine'))
+  hessian_euc = dist.squareform(dist.pdist(encodings, 'euclidean'))
+  hessian_cos = dist.squareform(dist.pdist(encodings, 'cosine'))
   encodings = encodings[0:360] if len(encodings) < 1500 else encodings[0:720]
   encodings = manual_pca(encodings)
-
   if encodings.shape[1] <= 3:
-    return print_data_only(encodings, file_name)
+    return print_data_only(encodings, file_name, fig=fig)
 
   grid = (3, 4) if grid is None else grid
   project_ops = []
@@ -127,8 +127,8 @@ def visualize_encodings(encodings, file_name=None,
 
   for i, (name, manifold) in enumerate(project_ops):
     is3d = 'N:3' in name
-    if (fast or 'grid' in FLAGS.suffix) and 'MDS' in name:
-      continue
+    # if (fast or 'grid' in FLAGS.suffix) and 'MDS' in name:
+    #   continue
 
     try:
       if is3d: subplot = plt.subplot(grid[0], grid[1], plot_places[i], projection='3d')
@@ -265,21 +265,29 @@ def data_to_colors(data, indexes=None):
   return color_data
 
 
-def visualize_encoding(encodings, folder=None, meta={}, oriringal=None, reconstruction=None):
-  # ut.print_info('VISUALIZATION cutting the encodings', color=31)
-  # encodings = encodings[1:360]
+def visualize_encoding(encodings, folder=None, meta={}, original=None, reconstruction=None):
+  if np.max(original) < 10:
+    original = (original * 255).astype(np.uint8)
+  # print('np', np.max(original), np.max(reconstruction), np.min(original), np.min(reconstruction),
+  #       original.dtype, reconstruction.dtype)
   file_path = None
   if folder:
     meta['postfix'] = 'pca'
     file_path = ut.to_file_name(meta, folder, 'png')
-  if oriringal is not None:
-    assert len(oriringal) == len(reconstruction)
+
+  encodings = manual_pca(encodings)
+
+  if original is not None:
+    assert len(original) == len(reconstruction)
     fig = plt.figure()
 
-    print(oriringal.shape, reconstruction.shape)
-    column_picture, height = stitch_images(oriringal, reconstruction)
-    picture = reshape_images(column_picture, height, proportion=3)
-    plt.subplot(155).imshow(picture)
+    column_picture, height = stitch_images(original, reconstruction)
+    if encodings.shape[1] <= 3:
+      picture = reshape_images(column_picture, height, proportion=1)
+      plt.subplot(122).imshow(picture)
+    else:
+      picture = reshape_images(column_picture, height, proportion=3)
+      plt.subplot(155).imshow(picture)
     visualize_encodings(encodings, file_name=file_path, fig=fig, grid=(3, 5), skip_every=5)
   else:
     visualize_encodings(encodings, file_name=file_path)

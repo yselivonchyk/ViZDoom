@@ -5,6 +5,7 @@ import input
 import DoomModel as dm
 import pickle
 from datetime import datetime as dt
+import sys
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -20,7 +21,7 @@ def search_learning_rate(lrs=[0.001, 0.0004, 0.0001, 0.00003, 0.00001],
   for lr in lrs:
     ut.print_info('STEP: search_learning_rate', color=31)
     FLAGS.learning_rate = lr
-    model = dm.DoomModel()
+    model = model_class()
     meta, accuracy_by_epoch = model.train(epochs)
     result_list.append((ut.to_file_name(meta), accuracy_by_epoch))
     best_accuracy = np.min(accuracy_by_epoch)
@@ -37,7 +38,7 @@ def search_learning_rate(lrs=[0.001, 0.0004, 0.0001, 0.00003, 0.00001],
   ut.print_info('BEST Q: %d IS ACHIEVED FOR LR: %f' % (best_result, best_args), 36)
 
 
-def search_batch_size(bss=[20, 50, 100], strides=[2, 4, 7], epochs=500):
+def search_batch_size(bss=[50], strides=[1, 2, 5, 20], epochs=500):
   FLAGS.suffix = 'grid_bs'
   ut.print_info('START: search_batch_size', color=31)
   best_result, best_args = None, None
@@ -49,7 +50,7 @@ def search_batch_size(bss=[20, 50, 100], strides=[2, 4, 7], epochs=500):
       ut.print_info('STEP: search_batch_size %d %d' % (bs, stride), color=31)
       FLAGS.batch_size = bs
       FLAGS.stride = stride
-      model = dm.DoomModel()
+      model = model_class()
       start = dt.now()
       # meta, accuracy_by_epoch = model.train(epochs * int(bs / bss[0]))
       meta, accuracy_by_epoch = model.train(epochs)
@@ -70,55 +71,6 @@ def search_batch_size(bss=[20, 50, 100], strides=[2, 4, 7], epochs=500):
 
   ut.print_info('BEST Q: %d IS ACHIEVED FOR bs, st: %d %d' % (best_result, best_args[0], best_args[1]), 36)
 
-"""
-h_e	h_n	h_d	q
-0100	03	0100	105.00
-0100	06	0100	105.93
-0100	12	0100	106.05
-0100	03	0500	105.73
-0100	06	0500	100.66
-0100	12	0500	105.31
-0100	03	2000	105.81
-0100	06	2000	106.00
-0100	12	2000	106.04
-0500	03	0100	100.30
-0500	06	0100	100.61
-0500	12	0100	095.50
-0500	03	0500	102.53
-0500	06	0500	099.28
-0500	12	0500	097.00
-0500	03	2000	106.50
-0500	06	2000	104.44
-0500	12	2000	096.58
-2000	03	0100	106.28
-2000	06	0100	104.38
-2000	12	0100	098.60
-2000	03	0500	118.14
-2000	06	0500	105.19
-2000	12	0500	096.39
-2000	03	2000	119.36
-2000	06	2000	108.37
-2000	12	2000	093.44
-
-h_n = 3
-h_e / h_d	100	500	2000
-100	  105	    105.73	105.81
-500	  100.3	  102.53	106.5
-2000	106.28	118.14	119.36
-
-h_n = 12
-h_e / h_d	100	500	2000
-100	  106.05	105.31	106.04
-500 	95.5	  97	    96.58
-2000	98.6	  96.39	   93.44
-
-h_n = 6
-h_e / h_d	100	500	2000
-100	  105.93	100.66	106
-500	  100.61	99.28	  104.44
-2000	104.38	105.19	108.37
-"""
-
 
 def search_layer_sizes(epochs=200):
   FLAGS.suffix = 'grid_h'
@@ -129,7 +81,7 @@ def search_layer_sizes(epochs=200):
   for _, h_encoder in enumerate([100, 500, 2000]):
     for _, h_decoder in enumerate([100, 500, 2000]):
       for _, h_narrow in enumerate([3, 6, 12]):
-        model = dm.DoomModel()
+        model = model_class()
         model.layer_encoder = h_encoder
         model.layer_narrow = h_narrow
         model.layer_decoder = h_decoder
@@ -156,13 +108,13 @@ def search_layer_sizes_follow_up():
   """train further 2 best models"""
   FLAGS.save_every = 200
   for i in range(4):
-    model = dm.DoomModel()
+    model = model_class()
     model.layer_encoder = 500
     model.layer_narrow = 3
     model.layer_decoder = 100
     model.train(600)
 
-    model = dm.DoomModel()
+    model = model_class()
     model.layer_encoder = 500
     model.layer_narrow = 12
     model.layer_decoder = 500
@@ -171,7 +123,7 @@ def search_layer_sizes_follow_up():
 
 def print_reconstructions_along_with_originals():
   FLAGS.load_from_checkpoint = './tmp/doom_bs__act|sigmoid__bs|20__h|500|5|500__init|na__inp|cbd4__lr|0.0004__opt|AO'
-  model = dm.DoomModel()
+  model = model_class()
   files = ut.list_encodings(FLAGS.save_path)
   last_encoding = files[-1]
   print(last_encoding)
@@ -185,24 +137,42 @@ def print_reconstructions_along_with_originals():
 def train_couple_8_models():
   FLAGS.input_path = '../data/tmp/8_pos_delay_3/img/'
 
-  model = dm.DoomModel()
+  model = model_class()
   model.set_layer_sizes([500, 5, 500])
   for i in range(10):
     model.train(1000)
 
-  model = dm.DoomModel()
+  model = model_class()
   model.set_layer_sizes([1000, 10, 1000])
   for i in range(20):
     model.train(1000)
 
 
-if __name__ == '__main__':
-  # print_reconstructions_along_with_originals()
-  # train_couple_8_models()
+if __name__ == "__main__":
+  # run function if provided as console params
+  epochs = 100
+  model_class = dm.DoomModel
+  experiment = search_learning_rate
+
+  if len(sys.argv) > 1:
+    print(sys.argv)
+    experiment = sys.argv[1]
+    if experiment not in locals():
+      ut.print_info('Function "%s" not found. List of available functions:' % experiment)
+      ut.print_info('\n'.join([x for x in locals() if 'search' in x]))
+      exit(0)
+    experiment = locals()[experiment]
+  if len(sys.argv) > 2:
+    epochs = int(sys.argv[2])
+  if len(sys.argv) > 3:
+    m = __import__(sys.argv[3])
+    model_class = getattr(m, sys.argv[3])
+
   FLAGS.suffix = 'grid'
-  FLAGS.input_path = '../data/tmp/8_pos_delay_3/img/'
-  epochs = 500
+  FLAGS.input_path = '../data/tmp/8_pos_delay/img/'
+
+  experiment(epochs=epochs)
+
   # search_layer_sizes(epochs=epochs)
-  search_batch_size(epochs=epochs)
+  # search_batch_size(epochs=epochs)
   # FLAGS.batch_size = 40
-  # search_learning_rate(epochs=epochs)

@@ -14,8 +14,8 @@ FLAGS = tf.app.flags.FLAGS
 
 class ConvModel(DropoutModel.DropoutModel):
   def __init__(self):
-    FLAGS.suffix = 'conv'
     super(ConvModel, self).__init__()
+    self.model_id = 'conv'
 
   def encoder(self, input_tensor):
     print('Convolutional encoder')
@@ -40,8 +40,8 @@ class ConvModel(DropoutModel.DropoutModel):
     meta = super(ConvModel, self).get_meta()
     return meta
 
-  def load_meta(self, save_path):
-    meta = super(ConvModel, self).get_meta()
+  # def load_meta(self, save_path):
+  #   meta = super(ConvModel, self).load_meta()
 
 if __name__ == '__main__':
   model = ConvModel()
