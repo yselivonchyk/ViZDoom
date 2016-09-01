@@ -116,7 +116,7 @@ class DoomModel:
     meta = meta if meta else {}
 
     meta['postf'] = self.model_id
-    meta['act'] = self._activation.func
+    meta['a'] = 's'
     meta['lr'] = FLAGS.learning_rate
     meta['init'] = self._weight_init
     meta['bs'] = FLAGS.batch_size
@@ -129,7 +129,7 @@ class DoomModel:
   def save_meta(self):
     meta = self.get_meta()
     ut.configure_folders(FLAGS, meta)
-    meta['act'] = str(meta['act']).split(' ')[1]
+    meta['a'] = 's'
     meta['opt'] = str(meta['opt']).split('.')[-1][:-2]
     meta['input_path'] = FLAGS.input_path
     path = os.path.join(FLAGS.save_path, 'meta.txt')
@@ -144,10 +144,10 @@ class DoomModel:
     FLAGS.learning_rate = meta['lr']
     FLAGS.stride = int(meta['str']) if 'str' in meta else 2
     self._weight_init = meta['init']
-    self._activation = tf.train.AdadeltaOptimizer \
+    self._optimizer = tf.train.AdadeltaOptimizer \
       if 'Adam' in meta['opt'] \
       else tf.train.AdadeltaOptimizer
-    self._activation = act.sigmoid if 'sigmoid' in meta['act'] else act.tanh
+    self._activation = act.sigmoid
     self.layer_encoder = meta['h'][0]
     self.layer_narrow = meta['h'][1]
     self.layer_decoder = meta['h'][2]
@@ -259,7 +259,7 @@ class DoomModel:
 
   def save_encodings(self, encodings, visual_set, reconstruction, accuracy):
     epochs_past = DoomModel.get_past_epochs()
-    meta = {'suf': 'encodings', 'e': int(epochs_past), 'ac': int(accuracy)}
+    meta = {'suf': 'encodings', 'e': int(epochs_past), 'er': int(accuracy)}
     projection_file = ut.to_file_name(meta, FLAGS.save_path, 'txt')
     np.savetxt(projection_file, encodings)
     vis.visualize_encoding(encodings, FLAGS.save_path, meta, visual_set, reconstruction)
@@ -268,7 +268,7 @@ class DoomModel:
     epochs_past = int(bookkeeper.global_step().eval() / _epoch_size)
     self.save_meta()
     runner._saver.max_to_keep = 2
-    runner._saver.save(sess, FLAGS.save_path, int(epochs_past))
+    runner._saver.save(sess, FLAGS.save_path, 9999)
 
   def print_epoch_info(self, accuracy, current_epoch, reconstructions, epochs):
     epochs_past = DoomModel.get_past_epochs() - current_epoch
@@ -394,20 +394,20 @@ if __name__ == '__main__':
   # model.train(epochs)
   #
 
-  epochs = 5000
+  epochs = 5
   FLAGS.input_path = '../data/tmp/8_pos_delay/img/'
   model = DoomModel()
   model.set_layer_sizes([500, 3, 500])
   model.train(epochs)
 
-  epochs = 5000
-  FLAGS.input_path = '../data/tmp/8_pos_delay_3/img/'
-  model = DoomModel()
-  model.set_layer_sizes([500, 3, 500])
-  model.train(epochs)
-
-  epochs = 5000
-  FLAGS.input_path = '../data/tmp/8_pos_delay/img/'
-  model = DoomModel()
-  model.set_layer_sizes([500, 8, 500])
-  model.train(epochs)
+  # epochs = 5000
+  # FLAGS.input_path = '../data/tmp/8_pos_delay_3/img/'
+  # model = DoomModel()
+  # model.set_layer_sizes([500, 3, 500])
+  # model.train(epochs)
+  #
+  # epochs = 5000
+  # FLAGS.input_path = '../data/tmp/8_pos_delay/img/'
+  # model = DoomModel()
+  # model.set_layer_sizes([500, 8, 500])
+  # model.train(epochs)

@@ -27,6 +27,7 @@ class MultylayerModel(DoomModel.DoomModel):
   model_id = 'ml'
 
   def __init__(self):
+    FLAGS.learning_rate = 0.0001
     super(MultylayerModel, self).__init__()
 
   def encoder(self, input_tensor):
@@ -58,4 +59,4 @@ if __name__ == '__main__':
     epochs = int(sys.argv[1])
   model = MultylayerModel()
   model.set_layer_sizes([500, 12, 500])
-  model.train(100)
+  model.train(1000)
