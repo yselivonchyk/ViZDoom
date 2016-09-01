@@ -20,11 +20,11 @@ flags = tf.flags
 logging = tf.logging
 
 flags.DEFINE_integer("batch_size", 20, "batch size")
-flags.DEFINE_integer("updates_per_epoch", 10, "number of updates per epoch")
+flags.DEFINE_integer("updates_per_epoch", 100, "number of updates per epoch")
 flags.DEFINE_integer("max_epoch", 1000, "max epoch")
 flags.DEFINE_float("learning_rate", 1e-2, "learning rate")
-flags.DEFINE_string("working_directory", "", "")
-flags.DEFINE_integer("hidden_size", 10, "size of the hidden VAE unit")
+flags.DEFINE_string("working_directory", "./", "")
+flags.DEFINE_integer("hidden_size", 20, "size of the hidden VAE unit")
 
 tf.app.flags.DEFINE_string('input_path', '../data/tmp/8_pos_delay_3/img/', 'input folder')
 

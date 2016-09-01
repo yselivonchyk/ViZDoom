@@ -204,7 +204,7 @@ def visualize_data_same(data, grid, places):
   all_dimensions = np.arange(0, data.shape[1]).astype(np.int8)
   first_proj, left = _random_split(None, 2, all_dimensions)
   first_color_indexes, _ = _random_split(left, 3, all_dimensions)
-  first_color = data_to_colors(data, first_color_indexes)
+  first_color = data_to_colors(data, first_color_indexes - 2)
 
   second_proj, left = _random_split(left, 2, all_dimensions)
   second_color = build_radial_colors(len(data))
@@ -230,7 +230,7 @@ def visualize_data_same(data, grid, places):
     else:
       subplot = plt.subplot(grid[0], grid[1], places[i], projection='3d')
       subplot.scatter(points[0], points[1], points[2], c=color, cmap=COLOR_MAP, picker=PICKER_SENSITIVITY)
-    subplot.set_title('Data %s' % str(projection))
+    subplot.set_title('Data %s %s' % (str(projection), 'sequntial color' if i % 2 == 1 else ''))
 
 
 def visualize_data_same_deprecated(data, grid, places, dims_as_colors=False):
@@ -383,7 +383,6 @@ def stitch_images(*args):
   """Recieves one or many arrays of pictures and stitches them into one picture"""
   lines, height, width, channels = args[0].shape
   min = 0   #int(args[0].mean())
-  print('stitch debug:', min, lines, height)
 
   stack = args[0]
   if len(args) > 1:

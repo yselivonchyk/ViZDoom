@@ -67,7 +67,13 @@ class EncodingVisualizer:
     reco = self.reconstructions[ind]
     column_picture, height = vi.stitch_images(orig, reco)
     picture = vi.reshape_images(column_picture, height, proportion=3)
-    plt.subplot(155).set_title(', '.join(map(str, ind)))
+
+    title = ''
+    for i in range(len(ind)):
+      title += ' ' + str(ind[i])
+      if (i+1) % 8 == 0:
+        title += '\n'
+    plt.subplot(155).set_title(title)
     plt.subplot(155).imshow(picture)
     plt.show()
 
