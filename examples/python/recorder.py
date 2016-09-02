@@ -36,7 +36,7 @@ game.load_config("../../examples/config_all_actions/deathmatch.cfg")
 # game.load_config("../../examples/config_all_actions/defend_the_line.cfg")
 # game.load_config("../../examples/config_all_actions/health_gathering.cfg")      # large with constant damage
 # game.load_config("../../examples/config_all_actions/my_way_home.cfg")           # labirinth
-# game.load_config("../../examples/config_all_actions/predict_position.cfg")      # large map with 1 randomly moving mob
+game.load_config("../../examples/config_all_actions/predict_position.cfg")      # large map with 1 randomly moving mob
 # game.load_config("../../examples/config_all_actions/take_cover.cfg")
 
 # resolution = ScreenResolution.RES_1280X1024
@@ -44,7 +44,7 @@ game.load_config("../../examples/config_all_actions/deathmatch.cfg")
 
 resolution = ScreenResolution.RES_160X120
 record = True
-output_folder = '../../data/line_dm_2/'
+output_folder = '../../data/8_pos_delay_3/'
 
 # print(dir(ScreenResolution))
 # exit(0)
@@ -84,7 +84,7 @@ distance = 0
 sum = 0
 dsp = dp.Dispatcher()
 dsp = DispatcherCircle.DispatcherCircle()
-dsp = DispatcherLine.DispatcherLine()
+# dsp = DispatcherLine.DispatcherLine()
 # dsp = radp.ActionDispatcher()
 
 

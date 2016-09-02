@@ -4,7 +4,8 @@ import math
 import time as t
 
 STEP = 2
-TOTAL = 360
+# TOTAL = 360
+TOTAL = 360*3
 
 
 class RunIn8:
@@ -65,3 +66,4 @@ class RunIn8:
                 self.turn_back += 1
                 return self.subturn(-1)
 
+T
