@@ -53,6 +53,7 @@ class EncodingVisualizer:
       self.reconstructions = self.model.decode(data)
     except:
       ut.print_info("Model could not load from checkpoint %s" % str(sys.exc_info()), color=31)
+      self.original_data, _ = inp.get_images(FLAGS.input_path)
       self.reconstructions = np.zeros(self.original_data.shape).astype(np.uint8)
     ut.print_info('INPUT: %s' % FLAGS.input_path.split('/')[-3])
     self.original_data, _ = inp.get_images(FLAGS.input_path)
@@ -94,6 +95,7 @@ def visualize_latest_from_visualization_folder(folder='./visualizations/', file=
 
 
 def visualize_from_checkpoint(checkpoint, epoch=None):
+  assert os.path.exists(checkpoint)
   FLAGS.load_from_checkpoint = checkpoint
   file_filter = r'.*\d+\.txt$' if epoch is None else r'.*e\|%d.*' % epoch
   latest_file = ut.get_latest_file(folder=checkpoint, filter=file_filter)
@@ -103,7 +105,7 @@ def visualize_from_checkpoint(checkpoint, epoch=None):
   fig = plt.figure()
   fig.set_size_inches(fig.get_size_inches()[0] * 2, fig.get_size_inches()[1] * 2)
   entity = EncodingVisualizer(fig, data)
-  fig.tight_layout()
+  # fig.tight_layout()
   plt.show()
 
 
@@ -114,10 +116,10 @@ if __name__ == '__main__':
 
 
 
-  path = sys.argv[1] if len(sys.argv) > 1 else None
+  path = sys.argv[1] if len(sys.argv) > 1 \
+    else './tmp/ml__act|sigmoid__bs|30__h|500|10|500__init|na__inp|8pd3__lr|0.00003__opt|AO__seq|03'
   epoch = int(sys.argv[2]) if len(sys.argv) > 2 else None
 
-  path = './tmp/grid_h_bs__act|sigmoid__bs|30__h|500|12|500__init|na__inp|8pd__lr|0.0004__opt|AO__seq|02/'
   # path = './tmp/doom_bs__act|sigmoid__bs|30__h|500|12|500__init|na__inp|8pd3__lr|0.0004__opt|AO/'
 
   # import os
