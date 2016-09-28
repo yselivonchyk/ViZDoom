@@ -1,6 +1,7 @@
 import cv2
 import os, shutil
-
+import json
+import numpy as np
 
 __output = '../../data//test/'
 COLOR_SUBFOLDER = 'img'
@@ -47,9 +48,30 @@ def _get_image_folders(clear_files=False):
     depth_folder = _create_folder(os.path.join(suffix_folder, __resolution_subfolder), clear_files=clear_files)
     return color_folder, depth_folder
 
+action_file_name = 'action.txt'
+actions = []
+change = 0
 
-def prntscr(depth_img, img):
-    global __counter
+previous_action, previous_image = [], np.asarray([])
+
+def prntscr(depth_img, img, action):
+    global __counter, previous_action, previous_image, change
+
+    any_action = sum([abs(x) for x in previous_action]) != 0
+    image_changed = img.mean() != previous_image.mean()
+
+    with open(os.path.join(__output, action_file_name), 'w') as action_file:
+        actions.append((__counter, str(image_changed), previous_action))
+        json.dump(actions, action_file)
+
+    if any_action:
+        change = 0
+    else:
+        if image_changed:
+            change += 1
+    print(previous_action, 'change with no action', change)
+
+
     __counter += 1
     color_output, depth_output = _get_image_folders()
     name = '_%05d.jpg' % __counter
@@ -59,4 +81,7 @@ def prntscr(depth_img, img):
             cv2.imwrite(os.path.join(depth_output, name), depth_img)
         if img is not None:
             cv2.imwrite(os.path.join(color_output, name), img)
+
+    previous_action, previous_image = action, img
+
 

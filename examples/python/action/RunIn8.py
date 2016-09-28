@@ -66,4 +66,3 @@ class RunIn8:
                 self.turn_back += 1
                 return self.subturn(-1)
 
-T

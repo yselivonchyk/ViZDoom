@@ -14,7 +14,7 @@ class WallAlign:
 
     precise_mode = False
 
-    finished = False
+    finished = True
 
     move = ac.empty()
     current = None

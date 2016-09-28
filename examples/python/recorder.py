@@ -21,7 +21,7 @@ import collector as cl
 from action import action as ac
 import action.Dispatcher as dp
 import action.ActionDispatcher as radp
-from action import DispatcherCircle, DispatcherLine, ActionDispatcher
+from action import DispatcherCircle, DispatcherLine, ActionDispatcher, DummyDispatcher
 
 game = DoomGame()
 
@@ -37,6 +37,8 @@ game.load_config("../../examples/config_all_actions/deathmatch.cfg")
 # game.load_config("../../examples/config_all_actions/health_gathering.cfg")      # large with constant damage
 # game.load_config("../../examples/config_all_actions/my_way_home.cfg")           # labirinth
 game.load_config("../../examples/config_all_actions/predict_position.cfg")      # large map with 1 randomly moving mob
+game.load_config("../../examples/config_all_actions/attempt1.cfg")      # large map with 1 randomly moving mobr
+game.load_config("../../examples/config_all_actions/attempt2_map.cfg")      # large map with 1 randomly moving mobr
 # game.load_config("../../examples/config_all_actions/take_cover.cfg")
 
 # resolution = ScreenResolution.RES_1280X1024
@@ -44,7 +46,7 @@ game.load_config("../../examples/config_all_actions/predict_position.cfg")      
 
 resolution = ScreenResolution.RES_160X120
 record = True
-output_folder = '../../data/8_pos_delay_3/'
+output_folder = '../../data/free2/'
 
 # print(dir(ScreenResolution))
 # exit(0)
@@ -52,7 +54,7 @@ output_folder = '../../data/8_pos_delay_3/'
 # Sets other rendering option
 game.set_render_hud(False)
 # game.set_render_crosshair(False)
-# game.set_render_weapon(False)
+game.set_render_weapon(False)
 # game.set_render_decals(False)
 # game.set_render_particles(False)
 # Enables freelook in engine
@@ -69,7 +71,7 @@ game.set_screen_resolution(resolution)
 # Enables spectator mode, so you can play. Sounds strange but it is agent who is supposed to watch not you.
 game.set_window_visible(True)
 
-spectator = False
+spectator = True
 game.set_mode(Mode.PLAYER)
 if spectator:
     game.set_mode(Mode.SPECTATOR)
@@ -77,7 +79,7 @@ if spectator:
 game.init()
 sleep_time = 40
 episodes = 10
-cl.init(record=record, output=output_folder, skip=DispatcherLine.delay, mode=resolution)
+cl.init(record=record, output=output_folder, skip=9,  mode=resolution)
 distance = 0
 
 
@@ -86,6 +88,9 @@ dsp = dp.Dispatcher()
 dsp = DispatcherCircle.DispatcherCircle()
 # dsp = DispatcherLine.DispatcherLine()
 # dsp = radp.ActionDispatcher()
+
+if spectator:
+    dsp = DummyDispatcher.DummyDispatcher()
 
 
 def printCross(depth):
@@ -108,14 +113,14 @@ for i in range(episodes):
         img_buffer = s.image_buffer
         misc = s.game_variables
 
-        a = dsp.action()
+        last_action = dsp.action()
         if spectator:
             game.advance_action()
         else:
-            game.make_action(a)
+            game.make_action(last_action)
 
-        a = game.get_last_action()
-        r = game.get_last_reward()
+        last_action = game.get_last_action()
+        last_reward = game.get_last_reward()
 
         # Gray8 shape is not cv2 compliant
         if game.get_screen_format() in [ScreenFormat.GRAY8, ScreenFormat.DEPTH_BUFFER8]:
@@ -132,11 +137,11 @@ for i in range(episodes):
             depth = img_buffer[:, :, 0]
             img =  img_buffer[:, :, 1:] -0
         depth = depth - 0
-        dsp.handle(depth, a)
+        dsp.handle(depth, last_action)
 
         # Display the image here!
         # printCross(depth) # print a cross
-        cl.prntscr(depth, img)
+        cl.prntscr(depth, img, last_action)
         cv2.waitKey(sleep_time)
         depth *= 10 % 255 # make it brighter
         cv2.imshow('Doom Buffer', depth)
