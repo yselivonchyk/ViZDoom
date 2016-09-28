@@ -92,6 +92,8 @@ src/vizdoom/zlib/x64/
 **.idea
 
 # outputs
+data/
 data/tmp/
 model/img/
 model/MNIST/
+model/tmp/
