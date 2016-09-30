@@ -10,8 +10,8 @@ import sys
 FLAGS = tf.app.flags.FLAGS
 
 
-def search_learning_rate(lrs=[0.001, 0.0004, 0.0001, 0.00003, 0.00001],
-                         epochs=100):
+def search_learning_rate(lrs=[0.001, 0.0004, 0.0001, 0.00003,],
+                         epochs=500):
   FLAGS.suffix = 'grid_lr'
   ut.print_info('START: search_learning_rate', color=31)
 
@@ -72,15 +72,15 @@ def search_batch_size(bss=[50], strides=[1, 2, 5, 20], epochs=500):
   ut.print_info('BEST Q: %d IS ACHIEVED FOR bs, st: %d %d' % (best_result, best_args[0], best_args[1]), 36)
 
 
-def search_layer_sizes(epochs=200):
+def search_layer_sizes(epochs=500):
   FLAGS.suffix = 'grid_h'
   ut.print_info('START: search_layer_sizes', color=31)
   best_result, best_args = None, None
   result_summary, result_list = [], []
 
-  for _, h_encoder in enumerate([100, 500, 2000]):
-    for _, h_decoder in enumerate([100, 500, 2000]):
-      for _, h_narrow in enumerate([3, 6, 12]):
+  for _, h_encoder in enumerate([300, 700, 2500]):
+    for _, h_decoder in enumerate([300, 700, 2500]):
+      for _, h_narrow in enumerate([3]):
         model = model_class()
         model.layer_encoder = h_encoder
         model.layer_narrow = h_narrow
@@ -169,7 +169,7 @@ if __name__ == "__main__":
     model_class = getattr(m, sys.argv[3])
 
   FLAGS.suffix = 'grid'
-  FLAGS.input_path = '../data/tmp/8_pos_delay/img/'
+  # FLAGS.input_path = '../data/tmp/8_pos_delay/img/'
 
   experiment(epochs=epochs)
 

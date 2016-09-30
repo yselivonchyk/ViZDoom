@@ -24,7 +24,7 @@ flags.DEFINE_integer("updates_per_epoch", 100, "number of updates per epoch")
 flags.DEFINE_integer("max_epoch", 1000, "max epoch")
 flags.DEFINE_float("learning_rate", 1e-2, "learning rate")
 flags.DEFINE_string("working_directory", "./", "")
-flags.DEFINE_integer("hidden_size", 20, "size of the hidden VAE unit")
+flags.DEFINE_integer("hidden_size", 50, "size of the hidden VAE unit")
 
 tf.app.flags.DEFINE_string('input_path', '../data/tmp/8_pos_delay_3/img/', 'input folder')
 
@@ -43,17 +43,22 @@ def encoder(input_tensor):
       A tensor that expresses the encoder network
   '''
   x = pt.wrap(input_tensor)
-  # print('1', x.tensor.get_shape())
-  x = x.conv2d(5, 32, stride=2)
-  # print('2', x.tensor.get_shape())
-  x = x.conv2d(5, 64, stride=2)
-  # print('3', x.tensor.get_shape())
-  x = x.conv2d(5, 128, edges='VALID')
-  global pre_hidden_size
-  pre_hidden_size = int(x.tensor.get_shape()[1])
-  # print('4', x.tensor.get_shape())
-  x = (x.dropout(0.9).flatten().fully_connected(FLAGS.hidden_size * 2, activation_fn=None)).tensor
-  # print('5', x.get_shape())
+
+  x = x.flatten().fully_connected(1000, name='e1')
+  # x = x.fully_connected(1000, name='e2')
+  x = x.fully_connected(FLAGS.hidden_size * 2, name='h', activation_fn=None)
+
+  # # print('1', x.tensor.get_shape())
+  # x = x.conv2d(5, 32, stride=2)
+  # # print('2', x.tensor.get_shape())
+  # x = x.conv2d(5, 64, stride=2)
+  # # print('3', x.tensor.get_shape())
+  # x = x.conv2d(5, 128, edges='VALID')
+  # global pre_hidden_size
+  # pre_hidden_size = int(x.tensor.get_shape()[1])
+  # # print('4', x.tensor.get_shape())
+  # x = (x.dropout(0.9).flatten().fully_connected(FLAGS.hidden_size * 2, activation_fn=None)).tensor
+  # # print('5', x.get_shape())
 
   return x
 
@@ -89,19 +94,26 @@ def decoder(batch_shape, input_tensor=None):
     stddev = tf.sqrt(tf.exp(input_tensor[:, FLAGS.hidden_size:]))
     input_sample = mean + epsilon * stddev
   x = pt.wrap(input_sample)
-  # print('7', x.tensor.get_shape())
-  x = x.reshape([FLAGS.batch_size, 1, 1, FLAGS.hidden_size])
-  # print('8', x.tensor.get_shape())
-  x = x.deconv2d(pre_hidden_size, 128, edges='VALID')
-  # print('9', x.tensor.get_shape())
-  x = x.deconv2d(5, 64, edges='VALID')
-  # print('10', x.tensor.get_shape())
-  x = x.deconv2d(5, 32, stride=2)
-  # print('11', x.tensor.get_shape())
-  x = x.deconv2d(5, batch_shape[3], stride=2, activation_fn=tf.nn.sigmoid)
-  # print('12', x.tensor.get_shape())
-  x = x.tensor
-  # print('13', x.get_shape())
+
+  x = x.fully_connected(1000, name='d1')
+  # x = x.fully_connected(1000, name='d2')
+  x = x.fully_connected(batch_shape[1]*batch_shape[2]*batch_shape[3], name='o')
+  x = x.reshape(batch_shape)
+
+  # # print('7', x.tensor.get_shape())
+  # x = x.reshape([FLAGS.batch_size, 1, 1, FLAGS.hidden_size])
+  # # print('8', x.tensor.get_shape())
+  # x = x.deconv2d(pre_hidden_size, 128, edges='VALID')
+  # # print('9', x.tensor.get_shape())
+  # x = x.deconv2d(5, 64, edges='VALID')
+  # # print('10', x.tensor.get_shape())
+  # x = x.deconv2d(5, 32, stride=2)
+  # # print('11', x.tensor.get_shape())
+  # x = x.deconv2d(5, batch_shape[3], stride=2, activation_fn=tf.nn.sigmoid)
+  # # print('12', x.tensor.get_shape())
+  # x = x.tensor
+  # # print('13', x.get_shape())
+
   return x, mean, stddev
   # return (pt.wrap(input_sample).
   #         reshape([FLAGS.batch_size, 1, 1, FLAGS.hidden_size]).
@@ -150,7 +162,7 @@ if __name__ == "__main__":
   print(loss_n)
   input_tensor = tf.placeholder(tf.float32, batch_shape)
 
-  with pt.defaults_scope(activation_fn=tf.nn.elu,
+  with pt.defaults_scope(activation_fn=tf.nn.sigmoid,
                          batch_normalize=True,
                          learned_moments_update_rate=0.0003,
                          variance_epsilon=0.001,
@@ -187,12 +199,11 @@ if __name__ == "__main__":
         x, _ = batcher.get_batch()
         _, loss_value = sess.run([train, loss], {input_tensor: x})
         training_loss += loss_value
-        print('%4d/%4d %3d/%3d %f' % (i, FLAGS.updates_per_epoch, epoch, FLAGS.max_epoch,
-                                             training_loss))
-
+        # print('%4d/%4d %3d/%3d %f' % (i, FLAGS.updates_per_epoch, epoch, FLAGS.max_epoch,
+        #                                      training_loss))
 
       training_loss = training_loss / loss_n
-      print("Loss %f" % training_loss)
+      print("Loss %f" % training_loss, epoch)
 
       imgs = sess.run(sampled_tensor)
       for k in range(FLAGS.batch_size):

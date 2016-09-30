@@ -14,9 +14,15 @@ import tools.checkpoint_utils as ch_utils
 import activation_functions as act
 import visualization as vis
 import prettytensor as pt
-import sys
 import prettytensor.bookkeeper as bookkeeper
 from prettytensor.tutorial import data_utils
+
+tf.app.flags.DEFINE_string('input_path', '../data/tmp/360/img/', 'input folder')
+tf.app.flags.DEFINE_integer('batch_size', 30, 'Batch size')
+tf.app.flags.DEFINE_float('learning_rate', 0.0001, 'Create visualization of ')
+tf.app.flags.DEFINE_integer('stride', 2, 'Data is permuted in series of INT consecutive inputs')
+
+tf.app.flags.DEFINE_string('suffix', 'run', 'Suffix to use to distinguish models by purpose')
 
 tf.app.flags.DEFINE_string('save_path', './tmp/checkpoint', 'Where to save the model checkpoints.')
 tf.app.flags.DEFINE_string('logdir', '', 'where to save logs.')
@@ -26,16 +32,10 @@ tf.app.flags.DEFINE_integer('vis_substeps', 10, 'Use INT intermediate images')
 
 tf.app.flags.DEFINE_boolean('load_state', True, 'Create visualization of ')
 tf.app.flags.DEFINE_integer('save_every', 1000, 'Save model state every INT epochs')
-tf.app.flags.DEFINE_integer('save_encodings_every', 100, 'Save model state every INT epochs')
-tf.app.flags.DEFINE_integer('batch_size', 30, 'Batch size')
-
-tf.app.flags.DEFINE_float('learning_rate', 0.0004, 'Create visualization of ')
-tf.app.flags.DEFINE_string('input_path', '../data/tmp/8_pos_delay/img/', 'input folder')
-tf.app.flags.DEFINE_integer('stride', 2, 'Data is permuted in series of INT consecutive inputs')
+tf.app.flags.DEFINE_integer('acc_every', 2, 'Save model state every INT epochs')
+tf.app.flags.DEFINE_integer('save_encodings_every', 250, 'Save model state every INT epochs')
 
 tf.app.flags.DEFINE_string('load_from_checkpoint', None, 'where to save logs.')
-tf.app.flags.DEFINE_string('suffix', 'run', 'Suffix to use to distinguish models by purpose')
-
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -45,13 +45,9 @@ class DoomModel:
   _epoch_size = None
   _test_size = None
 
-  layer_narrow = 3
-  layer_encoder = 500
-  layer_decoder = 500
-
-  # layer_narrow = 3
-  # layer_encoder = 500
-  # layer_decoder = 100
+  layer_narrow = 2
+  layer_encoder = 1000
+  layer_decoder = 1000
 
   _image_shape = None
   _batch_shape = None
@@ -68,12 +64,12 @@ class DoomModel:
   _visualize_op = None
 
   def __init__(self,
-              weight_init=None,
-              activation=act.sigmoid,
-              optimizer=tf.train.AdamOptimizer):
+               weight_init=None,
+               activation=act.sigmoid,
+               optimizer=tf.train.AdamOptimizer):
     self._weight_init = weight_init
-    self._activation= activation
-    self._optimizer= optimizer
+    self._activation = activation
+    self._optimizer = optimizer
     if FLAGS.load_from_checkpoint:
       self.load_meta(FLAGS.load_from_checkpoint)
 
@@ -237,7 +233,7 @@ class DoomModel:
   def fetch_datasets(self, activation_func_bounds):
     original_data, labels = inp.get_images(FLAGS.input_path)
     original_data = inp.rescale_ds(original_data, activation_func_bounds.min, activation_func_bounds.max)
-
+    # original_data, labels = original_data[:120], labels[:120]
     # print(original_data.shape, labels.shape)
     global _epoch_size, _test_size
     self._image_shape = inp.get_image_shape(FLAGS.input_path)
@@ -265,7 +261,6 @@ class DoomModel:
     vis.visualize_encoding(encodings, FLAGS.save_path, meta, visual_set, reconstruction)
 
   def checkpoint(self, runner, sess):
-    epochs_past = int(bookkeeper.global_step().eval() / _epoch_size)
     self.save_meta()
     runner._saver.max_to_keep = 2
     runner._saver.save(sess, FLAGS.save_path, 9999)
@@ -273,17 +268,18 @@ class DoomModel:
   def print_epoch_info(self, accuracy, current_epoch, reconstructions, epochs):
     epochs_past = DoomModel.get_past_epochs() - current_epoch
     reconstruction_info = ''
+    accuracy_info = '' if accuracy is None else 'accuracy %0.5f' % accuracy
     if FLAGS.visualize and DoomModel.is_stopping_point(current_epoch, epochs,
                                           stop_every=FLAGS.vis_substeps):
       reconstruction_info = 'last reconstruction: (min, max): (%3d %3d)' % (
       np.min(reconstructions[-1]),
       np.max(reconstructions[-1]))
     epoch_past_info = '' if epochs_past is None else '+%d' % (epochs_past - 1)
-    info_string = 'Accuracy after %2d/%d%s epoch(s): %.2f; %s' % (
+    info_string = 'Epochs %2d/%d%s %s %s' % (
       current_epoch + 1,
       epochs,
       epoch_past_info,
-      accuracy,
+      accuracy_info,
       reconstruction_info)
     ut.print_time(info_string)
 
@@ -305,6 +301,8 @@ class DoomModel:
     accuracy_by_epoch, epoch_reconstruction = [], []
 
     original_set, visual_set = self.fetch_datasets(self._activation)
+    padding_length = FLAGS.batch_size - (len(original_set) % FLAGS.batch_size)
+    encoding_set = np.concatenate((original_set, original_set[:padding_length]))
     self.build_model()
     placeholders = (self._input_placeholder, self._output_placeholder)
     _runner = pt.train.Runner(save_path=FLAGS.save_path, logdir=FLAGS.logdir)
@@ -317,7 +315,6 @@ class DoomModel:
         ut.print_info('Restored requested. Previous epoch: %d' % self.get_past_epochs(), color=31)
 
       for current_epoch in xrange(epochs_to_train):
-        # train_set = inp.permute_data(original_set)
         train_set = inp.permute_array_in_series(original_set, FLAGS.stride)
 
         if FLAGS.visualize and DoomModel.is_stopping_point(
@@ -333,21 +330,25 @@ class DoomModel:
           feed_data=pt.train.feed_numpy(FLAGS.batch_size, train_set, train_set),
           print_every=None)
 
-        accuracy = _runner.evaluate_model(
-          self._loss,
-          _test_size,
-          feed_vars=placeholders,
-          feed_data=pt.train.feed_numpy(FLAGS.batch_size, original_set, original_set))
+        accuracy = None
+        if DoomModel.is_stopping_point(current_epoch, epochs_to_train, FLAGS.acc_every):
+          decodings = self.process_in_batches(
+            sess,
+            (self._input_placeholder, self._output_placeholder),
+            self._encdec_op, original_set)
+          accuracy = np.sqrt(np.square(decodings - original_set[:len(decodings)].reshape(decodings.shape)).mean())
+          accuracy_by_epoch.append(accuracy)
 
-        self.print_epoch_info(accuracy, current_epoch, epoch_reconstruction, epochs_to_train)
-        accuracy_by_epoch.append(accuracy)
         if DoomModel.is_stopping_point(current_epoch, epochs_to_train, FLAGS.save_every):
           self.checkpoint(_runner, sess)
         if DoomModel.is_stopping_point(current_epoch, epochs_to_train, FLAGS.save_encodings_every):
-          encoding = self.process_in_batches(sess, placeholders, self._encode_op, original_set)
+          encoding = self.process_in_batches(sess, placeholders, self._encode_op, encoding_set)
+          encoding = encoding[:len(original_set)]
           visual_reconstruction = self.process_in_batches(
             sess, (self._input_placeholder, self._output_placeholder), self._visualize_op, visual_set)
           self.save_encodings(encoding, visual_set, visual_reconstruction, accuracy)
+
+        self.print_epoch_info(accuracy, current_epoch, epoch_reconstruction, epochs_to_train)
 
       meta['acu'] = int(np.min(accuracy_by_epoch))
       meta['e'] = self.get_past_epochs()
@@ -389,16 +390,15 @@ if __name__ == '__main__':
     layers = list(map(int, args['h'].split('/')))
     ut.print_info('layers %s' % str(layers), color=36)
     model.set_layer_sizes(layers)
-  #
-  # model = DoomModel()
-  # model.train(epochs)
-  #
 
-  epochs = 5
-  FLAGS.input_path = '../data/tmp/8_pos_delay/img/'
-  model = DoomModel()
-  model.set_layer_sizes([500, 3, 500])
   model.train(epochs)
+
+
+  # epochs = 5
+  # # FLAGS.input_path = '../data/tmp/8_pos_delay/img/'
+  # # model = DoomModel()
+  # model.set_layer_sizes([500, 2, 500])
+  # model.train(epochs)
 
   # epochs = 5000
   # FLAGS.input_path = '../data/tmp/8_pos_delay_3/img/'

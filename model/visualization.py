@@ -41,9 +41,15 @@ def print_data_only(data, file_name, fig=None, interactive=False):
   fig.set_size_inches(fig.get_size_inches()[0] * 2, fig.get_size_inches()[1] * 1)
 
   colors = build_radial_colors(len(data))
-  subplot = plt.subplot(subplot_number, projection='3d')
-  subplot.scatter(data[:, 0], data[:, 1], data[:, 2], c=colors,
-                  cmap=COLOR_MAP, picker=PICKER_SENSITIVITY)
+  if data.shape[1] > 2:
+    subplot = plt.subplot(subplot_number, projection='3d')
+    subplot.scatter(data[:, 0], data[:, 1], data[:, 2], c=colors,
+                    cmap=COLOR_MAP, picker=PICKER_SENSITIVITY)
+    subplot.plot(data[:, 0], data[:, 1], data[:, 2])
+  else:
+    subplot = plt.subplot(subplot_number)
+    subplot.scatter(data[:, 0], data[:, 1], c=colors,
+                    cmap=COLOR_MAP, picker=PICKER_SENSITIVITY)
   if not interactive:
     save_fig(file_name)
 
@@ -73,7 +79,7 @@ def manual_pca(data):
   # filter components by STD but take at least 3
 
   meaningless = [order[i] for i, x in enumerate(std) if x <= STD_THRESHOLD]
-  if any(meaningless):
+  if any(meaningless) and data.shape[1] > 3:
     ut.print_info('meaningless dimensions on visualization: %s' % str(meaningless))
 
   order = [order[i] for i, x in enumerate(std) if x > STD_THRESHOLD or i < 3]
@@ -97,7 +103,6 @@ def visualize_encoding(encodings, folder=None, meta={}, original=None, reconstru
   if folder:
     meta['postfix'] = 'pca'
     file_path = ut.to_file_name(meta, folder, 'png')
-
   encodings = manual_pca(encodings)
 
   if original is not None:
