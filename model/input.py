@@ -54,9 +54,15 @@ def _embed_3_axis(img):
 
 
 def get_image_shape(folder):
+  is_combination = _is_combination_of_image_depth(folder)
+  if is_combination:
+    folder = os.path.join(folder, 'img')
   images = _get_image_file_list(folder)
   image = _embed_3_axis(misc.imread(images[0]))
-  return image.shape
+  shape = list(image.shape)
+  if is_combination:
+    shape[-1] += 1
+  return shape
 
 
 def get_batch_shape(batch_size, input_folder):
@@ -67,7 +73,29 @@ def get_batch_shape(batch_size, input_folder):
     return batch_size, _image_shape[0], _image_shape[1], [1]
 
 
+def _is_combination_of_image_depth(folder):
+  return '/dep' not in folder or '/img' not in folder
+
+
 def get_images(folder, at_most=None):
+  if _is_combination_of_image_depth(folder):
+    depth, d_labels = _get_images(os.path.join(folder, 'dep'))
+    image, i_labels = _get_images(os.path.join(folder, 'img'))
+    assert len(depth) == len(image)
+    assert all([d_labels[i] == i_labels[i] for i in range(len(d_labels))])
+
+    shape = list(image.shape)
+    shape[-1] += 1
+    res = np.ndarray(shape, dtype=image.dtype)
+    for i in range(len(depth)):
+      res[i,:,:,:3] = image[i]
+      res[i,:,:,3] = depth[i,:,:,0]
+    return res, i_labels
+  else:
+    return _get_images(folder, at_most)
+
+
+def _get_images(folder, at_most=None):
   files = _get_image_file_list(folder)
   files.sort()
   if at_most:
