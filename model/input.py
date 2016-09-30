@@ -4,6 +4,7 @@ import numpy as np
 from os import listdir
 from os.path import isfile, join
 import utils as ut
+import json
 
 INPUT_FOLDER = '../data/circle_basic_1/img/32_32'
 
@@ -77,7 +78,28 @@ def _is_combination_of_image_depth(folder):
   return '/dep' not in folder or '/img' not in folder
 
 
+def get_action_data(folder):
+  folder = folder.replace('/tmp', '')
+  folder = folder.replace('/img', '')
+  folder = folder.replace('/dep', '')
+  file = os.path.join(folder, 'action.txt')
+  action_data = json.load(open(file, 'r'))
+  print(action_data)
+  res = []
+  for i, action in enumerate(action_data):
+    res.append(
+      (
+        action[0],
+        action[1],
+        action[2][3] or action[2][4] or action[2][5] or action[2][6],
+        action[2][18] != 0
+      )
+    )
+  return res
+
+
 def get_images(folder, at_most=None):
+  get_action_data(folder)
   if _is_combination_of_image_depth(folder):
     depth, d_labels = _get_images(os.path.join(folder, 'dep'))
     image, i_labels = _get_images(os.path.join(folder, 'img'))
