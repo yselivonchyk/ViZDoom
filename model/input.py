@@ -5,6 +5,7 @@ from os import listdir
 from os.path import isfile, join
 import utils as ut
 import json
+import scipy.ndimage
 
 INPUT_FOLDER = '../data/circle_basic_1/img/32_32'
 
@@ -75,7 +76,7 @@ def get_batch_shape(batch_size, input_folder):
 
 
 def _is_combination_of_image_depth(folder):
-  return '/dep' not in folder or '/img' not in folder
+  return '/dep' not in folder and '/img' not in folder
 
 
 def get_action_data(folder):
@@ -83,7 +84,7 @@ def get_action_data(folder):
   folder = folder.replace('/img', '')
   folder = folder.replace('/dep', '')
   file = os.path.join(folder, 'action.txt')
-  action_data = json.load(open(file, 'r'))
+  action_data = json.load(open(file, 'r'))[1:]
   print(action_data)
   res = []
   for i, action in enumerate(action_data):

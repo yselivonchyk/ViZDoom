@@ -17,7 +17,7 @@ import prettytensor as pt
 import prettytensor.bookkeeper as bookkeeper
 from prettytensor.tutorial import data_utils
 
-tf.app.flags.DEFINE_string('input_path', '../data/tmp/360/img/', 'input folder')
+tf.app.flags.DEFINE_string('input_path', '../data/tmp/8_nt/img/', 'input folder')
 tf.app.flags.DEFINE_integer('batch_size', 30, 'Batch size')
 tf.app.flags.DEFINE_float('learning_rate', 0.0001, 'Create visualization of ')
 tf.app.flags.DEFINE_integer('stride', 2, 'Data is permuted in series of INT consecutive inputs')
@@ -31,9 +31,9 @@ tf.app.flags.DEFINE_boolean('visualize', True, 'Create visualization of decoded 
 tf.app.flags.DEFINE_integer('vis_substeps', 10, 'Use INT intermediate images')
 
 tf.app.flags.DEFINE_boolean('load_state', True, 'Create visualization of ')
-tf.app.flags.DEFINE_integer('save_every', 1000, 'Save model state every INT epochs')
-tf.app.flags.DEFINE_integer('acc_every', 2, 'Save model state every INT epochs')
-tf.app.flags.DEFINE_integer('save_encodings_every', 250, 'Save model state every INT epochs')
+tf.app.flags.DEFINE_integer('save_every', 100, 'Save model state every INT epochs')
+tf.app.flags.DEFINE_integer('acc_every', 20, 'Calculate accuracy every INT epochs')
+tf.app.flags.DEFINE_integer('save_encodings_every', 20, 'Save model state every INT epochs')
 
 tf.app.flags.DEFINE_string('load_from_checkpoint', None, 'where to save logs.')
 
@@ -268,7 +268,7 @@ class DoomModel:
   def print_epoch_info(self, accuracy, current_epoch, reconstructions, epochs):
     epochs_past = DoomModel.get_past_epochs() - current_epoch
     reconstruction_info = ''
-    accuracy_info = '' if accuracy is None else 'accuracy %0.5f' % accuracy
+    accuracy_info = '' if accuracy is None else 'accuracy %0.1f' % accuracy
     if FLAGS.visualize and DoomModel.is_stopping_point(current_epoch, epochs,
                                           stop_every=FLAGS.vis_substeps):
       reconstruction_info = 'last reconstruction: (min, max): (%3d %3d)' % (
@@ -336,7 +336,8 @@ class DoomModel:
             sess,
             (self._input_placeholder, self._output_placeholder),
             self._encdec_op, original_set)
-          accuracy = np.sqrt(np.square(decodings - original_set[:len(decodings)].reshape(decodings.shape)).mean())
+          accuracy = np.sqrt(np.square(decodings - original_set[:len(decodings)].reshape(
+            decodings.shape)).mean())*10000
           accuracy_by_epoch.append(accuracy)
 
         if DoomModel.is_stopping_point(current_epoch, epochs_to_train, FLAGS.save_every):
@@ -370,7 +371,7 @@ def parse_params():
 
 if __name__ == '__main__':
   # FLAGS.load_from_checkpoint = './tmp/doom_bs__act|sigmoid__bs|20__h|500|5|500__init|na__inp|cbd4__lr|0.0004__opt|AO'
-  epochs = 100
+  epochs = 1000
   import sys
 
   model = DoomModel()

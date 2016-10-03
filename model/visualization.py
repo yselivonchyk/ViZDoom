@@ -71,7 +71,7 @@ STD_THRESHOLD = 0.01
 
 def manual_pca(data):
   """remove meaningless dimensions"""
-  std = data.std(axis=0)
+  std = data[0:300].std(axis=0)
 
   # order = np.argsort(std)[::-1]
   order = np.arange(0, data.shape[1]).astype(np.int32)
@@ -123,14 +123,16 @@ def visualize_encoding(encodings, folder=None, meta={}, original=None, reconstru
 
 def visualize_encodings(encodings, file_name=None,
                         grid=None, skip_every=999, fast=False, fig=None, interactive=False):
-  hessian_euc = dist.squareform(dist.pdist(encodings[0:720], 'euclidean'))
-  hessian_cos = dist.squareform(dist.pdist(encodings[0:720], 'cosine'))
+
   # encodings = encodings[0:360] if len(encodings) < 1500 else encodings[0:720]
-  encodings = encodings[0:720]
+
   encodings = manual_pca(encodings)
   if encodings.shape[1] <= 3:
     return print_data_only(encodings, file_name, fig=fig, interactive=interactive)
 
+  encodings = encodings[0:720]
+  hessian_euc = dist.squareform(dist.pdist(encodings[0:720], 'euclidean'))
+  hessian_cos = dist.squareform(dist.pdist(encodings[0:720], 'cosine'))
   grid = (3, 4) if grid is None else grid
   project_ops = []
 

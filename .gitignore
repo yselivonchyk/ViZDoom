@@ -98,4 +98,4 @@ data/tmp/
 model/img/
 model/MNIST/
 model/tmp/
-model/results
+model/results/
