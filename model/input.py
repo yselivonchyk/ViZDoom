@@ -5,7 +5,8 @@ from os import listdir
 from os.path import isfile, join
 import utils as ut
 import json
-import scipy.ndimage
+import scipy.ndimage.filters as filters
+
 
 INPUT_FOLDER = '../data/circle_basic_1/img/32_32'
 
@@ -84,8 +85,10 @@ def get_action_data(folder):
   folder = folder.replace('/img', '')
   folder = folder.replace('/dep', '')
   file = os.path.join(folder, 'action.txt')
+  if not os.path.exists(file):
+    return []
   action_data = json.load(open(file, 'r'))[1:]
-  print(action_data)
+  # print(action_data)
   res = []
   for i, action in enumerate(action_data):
     res.append(
@@ -166,6 +169,20 @@ def permute_data(arrays, random_state=None):
     random_state = np.random
   order = random_state.permutation(len(arrays[0]))
   return [a[order] for a in arrays]
+
+
+def apply_gaussian(images, sigma=5):
+  if sigma == 0:
+    return images
+
+  ut.print_time('start')
+  output = [
+    [filters.gaussian_filter(channel, 2) for channel in image]
+    for image in images
+  ]
+  output = np.asarray(output)
+  ut.print_time('finish', images[0,0,0,0], output[0,0,0,0])
+  return output
 
 
 def permute_array_in_series(array, series_length):

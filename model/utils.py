@@ -36,7 +36,10 @@ def _get_time_offset():
   return res
 
 
-def print_time(string):
+def print_time(*args):
+  string = ''
+  for a in args:
+    string += str(a) + ' '
   time = datetime.datetime.now().time().strftime('%H:%M:%S')
   offset = _get_time_offset()
   res = '%s%s %s' % (str(time), offset, str(string))

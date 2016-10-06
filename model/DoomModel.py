@@ -31,9 +31,13 @@ tf.app.flags.DEFINE_boolean('visualize', True, 'Create visualization of decoded 
 tf.app.flags.DEFINE_integer('vis_substeps', 10, 'Use INT intermediate images')
 
 tf.app.flags.DEFINE_boolean('load_state', True, 'Create visualization of ')
-tf.app.flags.DEFINE_integer('save_every', 100, 'Save model state every INT epochs')
-tf.app.flags.DEFINE_integer('acc_every', 20, 'Calculate accuracy every INT epochs')
-tf.app.flags.DEFINE_integer('save_encodings_every', 20, 'Save model state every INT epochs')
+tf.app.flags.DEFINE_integer('save_every', 2, 'Save model state every INT epochs')
+tf.app.flags.DEFINE_integer('acc_every', 25, 'Calculate accuracy every INT epochs')
+tf.app.flags.DEFINE_integer('save_encodings_every', 250, 'Save model state every INT epochs')
+
+tf.app.flags.DEFINE_integer('sigma', 10, 'Image blur maximum effect')
+tf.app.flags.DEFINE_integer('sigma_step', 200, 'Decrease image blur every X epochs')
+
 
 tf.app.flags.DEFINE_string('load_from_checkpoint', None, 'where to save logs.')
 
@@ -268,10 +272,10 @@ class DoomModel:
   def print_epoch_info(self, accuracy, current_epoch, reconstructions, epochs):
     epochs_past = DoomModel.get_past_epochs() - current_epoch
     reconstruction_info = ''
-    accuracy_info = '' if accuracy is None else 'accuracy %0.1f' % accuracy
+    accuracy_info = '' if accuracy is None else '| accuracy %d' % int(accuracy)
     if FLAGS.visualize and DoomModel.is_stopping_point(current_epoch, epochs,
                                           stop_every=FLAGS.vis_substeps):
-      reconstruction_info = 'last reconstruction: (min, max): (%3d %3d)' % (
+      reconstruction_info = '| (min, max): (%3d %3d)' % (
       np.min(reconstructions[-1]),
       np.max(reconstructions[-1]))
     epoch_past_info = '' if epochs_past is None else '+%d' % (epochs_past - 1)
@@ -307,6 +311,7 @@ class DoomModel:
     placeholders = (self._input_placeholder, self._output_placeholder)
     _runner = pt.train.Runner(save_path=FLAGS.save_path, logdir=FLAGS.logdir)
 
+    # visual_set = inp.apply_gaussian(visual_set)
     with tf.Session() as sess:
       sess.run(tf.initialize_all_variables())
 
@@ -315,7 +320,11 @@ class DoomModel:
         ut.print_info('Restored requested. Previous epoch: %d' % self.get_past_epochs(), color=31)
 
       for current_epoch in xrange(epochs_to_train):
-        train_set = inp.permute_array_in_series(original_set, FLAGS.stride)
+        if current_epoch % FLAGS.sigma_step == 0:
+          sigma = max(0, (FLAGS.sigma - int(current_epoch / FLAGS.sigma_step)))
+          ut.print_info('NEW SIGMA: %d' % sigma)
+          blurred_set = inp.apply_gaussian(original_set, sigma=sigma)
+        train_set = inp.permute_array_in_series(blurred_set, FLAGS.stride)
 
         if FLAGS.visualize and DoomModel.is_stopping_point(
           current_epoch, epochs_to_train, stop_x_times=FLAGS.vis_substeps):
@@ -347,7 +356,7 @@ class DoomModel:
           encoding = encoding[:len(original_set)]
           visual_reconstruction = self.process_in_batches(
             sess, (self._input_placeholder, self._output_placeholder), self._visualize_op, visual_set)
-          self.save_encodings(encoding, visual_set, visual_reconstruction, accuracy)
+          self.save_encodings(encoding, visual_set, visual_reconstruction, accuracy_by_epoch[-1])
 
         self.print_epoch_info(accuracy, current_epoch, epoch_reconstruction, epochs_to_train)
 
@@ -371,7 +380,7 @@ def parse_params():
 
 if __name__ == '__main__':
   # FLAGS.load_from_checkpoint = './tmp/doom_bs__act|sigmoid__bs|20__h|500|5|500__init|na__inp|cbd4__lr|0.0004__opt|AO'
-  epochs = 1000
+  epochs = 5
   import sys
 
   model = DoomModel()
@@ -382,6 +391,10 @@ if __name__ == '__main__':
     ut.print_info('epochs: %d' % epochs, color=36)
   if 'stride' in args:
     FLAGS.stride = int(args['stride'])
+  if 'sigma' in args:
+    FLAGS.sigma = int(args['sigma'])
+  if 'suffix' in args:
+    FLAGS.suffix = args['suffix']
   if 'input' in args:
     parts = FLAGS.input_path.split('/')
     parts[-3] = args['input']
