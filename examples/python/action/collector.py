@@ -7,12 +7,15 @@ __output = '../../data//test/'
 COLOR_SUBFOLDER = 'img'
 DEPTH_SUBFOLDER = 'dep'
 __resolution_subfolder = '0_0'
-__counter = 0
+_counter = 0
+_actual_count = 0
 __toRecord = False
 __skip = 0
+__skip_same = True
+auxilary_info = [0, 0, 0, 0, 0] # x, y, v_x, v_y, angle
 
 
-def init(mode, record=True, output='../../data//test/', skip=0):
+def init(mode, record=True, output='../../data/test/', skip=0):
     print output
     global __resolution_subfolder, __toRecord, __skip, __output
     __toRecord = record
@@ -23,6 +26,10 @@ def init(mode, record=True, output='../../data//test/', skip=0):
     _get_image_folders(True)
     print "ImageCollector init: %s, %d, %s" % (output, skip, str(record))
 
+
+def start_recording():
+    global __toRecord
+    __toRecord = True
 
 def _create_folder(path, clear_files=False):
     if not os.path.exists(path):
@@ -50,32 +57,55 @@ def _get_image_folders(clear_files=False):
 
 action_file_name = 'action.txt'
 actions = []
-change = 0
+change_no_action = 0
+image_changed = False
 
 previous_action, previous_image = [], np.asarray([])
 
+
+def register_action(action):
+    global auxilary_info
+    auxilary_info = [0, 0, 0, 0, auxilary_info[-1]]
+    if action[3] != 0:
+        auxilary_info[0] = 1
+    if action[4] != 0:
+        auxilary_info[0] = -1
+
+    if action[5] != 0:
+        auxilary_info[1] = -1
+    if action[6] != 0:
+        auxilary_info[1] = 1
+    print(auxilary_info)
+
 def prntscr(depth_img, img, action):
-    global __counter, previous_action, previous_image, change
+    global _counter, previous_action, _actual_count, \
+        previous_image, change_no_action, image_changed
+
+    _counter += 1
 
     any_action = sum([abs(x) for x in previous_action]) != 0
     image_changed = img.mean() != previous_image.mean()
 
+    if __skip_same and not image_changed:
+        previous_action, previous_image = action, img
+        # print('skipped %d' % _counter)
+        return
+
+    _actual_count += 1
     with open(os.path.join(__output, action_file_name), 'w') as action_file:
-        actions.append((__counter, str(image_changed), previous_action))
-        json.dump(actions, action_file)
+        actions.append((_counter, str(image_changed), previous_action, auxilary_info[:]))
+        json.dump(actions, action_file, indent=2)
 
     if any_action:
-        change = 0
+        change_no_action = 0
     else:
         if image_changed:
-            change += 1
-    print(previous_action, 'change with no action', change)
+            change_no_action += 1
+    # print('change_no_action: %d' % change_no_action, previous_action)
 
-
-    __counter += 1
     color_output, depth_output = _get_image_folders()
-    name = '_%05d.jpg' % __counter
-    if __toRecord and __counter >= __skip:
+    name = '_%05d.jpg' % _counter
+    if __toRecord and _counter >= __skip:
         # print __output + 'dep' + name, depth_img
         if depth_img is not None:
             cv2.imwrite(os.path.join(depth_output, name), depth_img)

@@ -5,8 +5,14 @@ import Initial as ini
 import MapTracker as mp
 import RunIn8
 import RunInCircle
+import RunInRomb
+import collector
 
 delay = 121
+
+
+RUN_TRAJECTORY = None
+
 
 class DispatcherCircle:
     """Class that react to the game"""
@@ -23,10 +29,15 @@ class DispatcherCircle:
         if self.currentHandler.finished:
             print('!!!new handler')
             self.map = mp.MapTracker()
-            self.currentHandler = RunIn8.RunIn8(map)
+            collector.start_recording()
+            if RUN_TRAJECTORY is None:
+                self.currentHandler = RunIn8.RunInCircle(map)
+            else:
+                self.currentHandler = RUN_TRAJECTORY(map)
             # self.currentHandler = RunInCircle.RunInCircle(map)
+            self.currentHandler = RunInRomb.RunInRomb(map)
 
     def action(self):
-        action =  self.currentHandler.action()
+        action = self.currentHandler.action()
         self.map.register_action(action)
         return action

@@ -14,14 +14,10 @@ from time import sleep
 
 import cv2
 import numpy as np
-from action import *
 from vizdoom import *
 
-import collector as cl
-from action import action as ac
-import action.Dispatcher as dp
-import action.ActionDispatcher as radp
-from action import DispatcherCircle, DispatcherLine, ActionDispatcher, DummyDispatcher
+from action import DispatcherCircle, DummyDispatcher, RunInRomb
+from action import collector as cl
 
 game = DoomGame()
 
@@ -38,15 +34,26 @@ game.load_config("../../examples/config_all_actions/deathmatch.cfg")
 # game.load_config("../../examples/config_all_actions/my_way_home.cfg")           # labirinth
 game.load_config("../../examples/config_all_actions/predict_position.cfg")      # large map with 1 randomly moving mob
 game.load_config("../../examples/config_all_actions/attempt1.cfg")      # large map with 1 randomly moving mobr
-game.load_config("../../examples/config_all_actions/attempt2_map.cfg")      # large map with 1 randomly moving mobr
+# game.load_config("../../examples/config_all_actions/attempt2_map.cfg")      # large map with 1 randomly moving mobr
 # game.load_config("../../examples/config_all_actions/take_cover.cfg")
 
 # resolution = ScreenResolution.RES_1280X1024
 # record = False
 
 resolution = ScreenResolution.RES_160X120
-record = True
-output_folder = '../../data/free2/'
+
+record = False
+spectator = False
+output_folder = '../../data/romb_/'
+
+RunInRomb.set_8_trajectory()
+DispatcherCircle.RUN_TRAJECTORY = RunInRomb.RunInRomb
+
+
+# dsp = dp.Dispatcher()
+dsp = DispatcherCircle.DispatcherCircle()
+# dsp = DispatcherLine.DispatcherLine()
+# dsp = radp.ActionDispatcher()
 
 # print(dir(ScreenResolution))
 # exit(0)
@@ -54,7 +61,7 @@ output_folder = '../../data/free2/'
 # Sets other rendering option
 game.set_render_hud(False)
 # game.set_render_crosshair(False)
-game.set_render_weapon(False)
+# game.set_render_weapon(False)
 # game.set_render_decals(False)
 # game.set_render_particles(False)
 # Enables freelook in engine
@@ -71,7 +78,6 @@ game.set_screen_resolution(resolution)
 # Enables spectator mode, so you can play. Sounds strange but it is agent who is supposed to watch not you.
 game.set_window_visible(True)
 
-spectator = True
 game.set_mode(Mode.PLAYER)
 if spectator:
     game.set_mode(Mode.SPECTATOR)
@@ -79,15 +85,11 @@ if spectator:
 game.init()
 sleep_time = 40
 episodes = 10
-cl.init(record=record, output=output_folder, skip=9,  mode=resolution)
+cl.init(record=record, output=output_folder, mode=resolution)
 distance = 0
 
 
 sum = 0
-dsp = dp.Dispatcher()
-dsp = DispatcherCircle.DispatcherCircle()
-# dsp = DispatcherLine.DispatcherLine()
-# dsp = radp.ActionDispatcher()
 
 if spectator:
     dsp = DummyDispatcher.DummyDispatcher()

@@ -17,7 +17,7 @@ import prettytensor as pt
 import prettytensor.bookkeeper as bookkeeper
 from prettytensor.tutorial import data_utils
 
-tf.app.flags.DEFINE_string('input_path', '../data/tmp/8_nt/img/', 'input folder')
+tf.app.flags.DEFINE_string('input_path', '../data/tmp/free2/img/', 'input folder')
 tf.app.flags.DEFINE_integer('batch_size', 30, 'Batch size')
 tf.app.flags.DEFINE_float('learning_rate', 0.0001, 'Create visualization of ')
 tf.app.flags.DEFINE_integer('stride', 2, 'Data is permuted in series of INT consecutive inputs')
@@ -50,8 +50,8 @@ class DoomModel:
   _test_size = None
 
   layer_narrow = 2
-  layer_encoder = 1000
-  layer_decoder = 1000
+  layer_encoder = 100
+  layer_decoder = 100
 
   _image_shape = None
   _batch_shape = None
@@ -80,20 +80,14 @@ class DoomModel:
   def encoder(self, input_tensor):
     return (pt.wrap(input_tensor)
             .flatten()
-            .fully_connected(self.layer_encoder)
-            .fully_connected(self.layer_narrow))
-
-  # def encoder_conv(self, input_tensor):
-  #   return (pt.wrap(input_tensor)
-  #           .flatten()
-  #           .fully_connected(self.layer_encoder)
-  #           .fully_connected(self.layer_narrow))
+            .fully_connected(self.layer_encoder, name='encoder_1')
+            .fully_connected(self.layer_narrow, name='narrow'))
 
   def decoder(self, input_tensor=None, weight_init=tf.truncated_normal):
     return (pt.wrap(input_tensor)
-            .fully_connected(self.layer_decoder)
+            .fully_connected(self.layer_decoder, name='decoder_1')
             .fully_connected(self._image_shape[0] * self._image_shape[1] * self._image_shape[2],
-                             init=weight_init))
+                             init=weight_init, name='output'))
 
   # MISC
 
@@ -154,29 +148,32 @@ class DoomModel:
     FLAGS.load_state = True
     ut.configure_folders(FLAGS, self.get_meta())
 
+
   # MODEL
 
   def build_model(self):
-    tf.reset_default_graph()
-    batch_shape = inp.get_batch_shape(FLAGS.batch_size, FLAGS.input_path)
-    self._input_placeholder = tf.placeholder(tf.float32, batch_shape)
-    self._output_placeholder = tf.placeholder(tf.float32, batch_shape)
-    self._encoding_placeholder = tf.placeholder(tf.float32, (FLAGS.batch_size, self.layer_narrow))
+    with tf.device('/cpu:0'):
+      tf.reset_default_graph()
+      batch_shape = inp.get_batch_shape(FLAGS.batch_size, FLAGS.input_path)
+      self._batch_shape = batch_shape
+      self._input_placeholder = tf.placeholder(tf.float32, batch_shape)
+      self._output_placeholder = tf.placeholder(tf.float32, batch_shape)
+      self._encoding_placeholder = tf.placeholder(tf.float32, (FLAGS.batch_size, self.layer_narrow))
 
-    with pt.defaults_scope(activation_fn=self._activation.func):
-      with pt.defaults_scope(phase=pt.Phase.train):
-        with tf.variable_scope("model"):
-          self._encode_op = self.encoder(self._input_placeholder)
-          self._encdec_op = self.decoder(
-            self._encode_op,
-            weight_init=self._weight_init)
-          self._visualize_op = self._encdec_op.reshape(batch_shape)\
-            .apply(tf.mul, 255)\
-            .apply(tf.cast, tf.uint8)
+      with pt.defaults_scope(activation_fn=self._activation.func):
+        with pt.defaults_scope(phase=pt.Phase.train):
+          with tf.variable_scope("model"):
+            self._encode_op = self.encoder(self._input_placeholder)
+            self._encdec_op = self.decoder(
+              self._encode_op,
+              weight_init=self._weight_init)
+            self._visualize_op = self._encdec_op.reshape(batch_shape) \
+              .apply(tf.mul, 255) \
+              .apply(tf.cast, tf.uint8)
 
-    self._loss = self.square_loss(self._encdec_op, self._output_placeholder)
-    optimizer = self._optimizer(learning_rate=FLAGS.learning_rate)
-    self._train_op = pt.apply_optimizer(optimizer, losses=[self._loss])
+      self._loss = self.square_loss(self._encdec_op, self._output_placeholder)
+      optimizer = self._optimizer(learning_rate=FLAGS.learning_rate)
+      self._train_op = pt.apply_optimizer(optimizer, losses=[self._loss])
 
   # DECODER
 
@@ -246,7 +243,6 @@ class DoomModel:
 
     visual_set, _ = data_utils.permute_data((original_data, labels))
     return original_data, visual_set[0:FLAGS.batch_size]
-
 
   def set_layer_sizes(self, h):
     self.layer_encoder = h[0]
@@ -320,34 +316,26 @@ class DoomModel:
         ut.print_info('Restored requested. Previous epoch: %d' % self.get_past_epochs(), color=31)
 
       for current_epoch in xrange(epochs_to_train):
-        if current_epoch % FLAGS.sigma_step == 0:
-          sigma = max(0, (FLAGS.sigma - int(current_epoch / FLAGS.sigma_step)))
-          ut.print_info('NEW SIGMA: %d' % sigma)
-          blurred_set = inp.apply_gaussian(original_set, sigma=sigma)
-        train_set = inp.permute_array_in_series(blurred_set, FLAGS.stride)
+        # if current_epoch % FLAGS.sigma_step == 0:
+        #   sigma = max(0, (FLAGS.sigma - int(current_epoch / FLAGS.sigma_step)))
+        #   ut.print_info('NEW SIGMA: %d' % sigma)
+        #   blurred_set = inp.apply_gaussian(original_set, sigma=sigma)
+        # train_set = inp.permute_array_in_series(blurred_set, FLAGS.stride)
+        train_set = original_set
 
         if FLAGS.visualize and DoomModel.is_stopping_point(
           current_epoch, epochs_to_train, stop_x_times=FLAGS.vis_substeps):
           epoch_reconstruction.append(self.process_in_batches(
             sess, (self._input_placeholder, self._output_placeholder), self._visualize_op, visual_set))
 
-        _runner.train_model(
-          self._train_op,
-          self._loss,
-          _epoch_size,
-          feed_vars=placeholders,
-          feed_data=pt.train.feed_numpy(FLAGS.batch_size, train_set, train_set),
-          print_every=None)
-
-        accuracy = None
-        if DoomModel.is_stopping_point(current_epoch, epochs_to_train, FLAGS.acc_every):
-          decodings = self.process_in_batches(
-            sess,
-            (self._input_placeholder, self._output_placeholder),
-            self._encdec_op, original_set)
-          accuracy = np.sqrt(np.square(decodings - original_set[:len(decodings)].reshape(
-            decodings.shape)).mean())*10000
-          accuracy_by_epoch.append(accuracy)
+        total_loss = 0
+        feed = pt.train.feed_numpy(FLAGS.batch_size, train_set, train_set)
+        for _, batch in enumerate(feed):
+          if len(batch[0]) != FLAGS.batch_size: break
+          feed_dict = dict(zip(placeholders, batch))
+          _, loss = sess.run([self._train_op, self._loss], feed_dict=feed_dict)
+          total_loss += loss
+        accuracy = 100000*np.sqrt(total_loss/np.prod(self._batch_shape)/_epoch_size)
 
         if DoomModel.is_stopping_point(current_epoch, epochs_to_train, FLAGS.save_every):
           self.checkpoint(_runner, sess)
