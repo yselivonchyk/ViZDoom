@@ -306,6 +306,15 @@ def list_encodings(folder):
     return files
 
 
+def list_object_attributes(obj):
+  print('Object type: %s\t\tattributes:' % str(type(obj)))
+  print('\n\t'.join(map(str, obj.__dict__.keys())))
+
+
+def print_list(list):
+  print('\n'.join(map(str, list)))
+
+
 if __name__ == '__main__':
   data = []
   for i in range(10):

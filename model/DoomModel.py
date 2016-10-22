@@ -44,6 +44,16 @@ tf.app.flags.DEFINE_string('load_from_checkpoint', None, 'where to save logs.')
 FLAGS = tf.app.flags.FLAGS
 
 
+def is_stopping_point(current_epoch, epochs_to_train, stop_every=None, stop_x_times=None,
+                      stop_on_last=True):
+  if stop_on_last and current_epoch + 1 == epochs_to_train:
+    return True
+  if stop_x_times is not None:
+    return current_epoch % np.ceil(epochs_to_train / float(FLAGS.vis_substeps)) == 0
+  if stop_every is not None:
+    return (current_epoch + 1) % stop_every == 0
+
+
 class DoomModel:
   model_id = 'bs'
   _epoch_size = None
@@ -172,6 +182,7 @@ class DoomModel:
               .apply(tf.cast, tf.uint8)
 
       self._loss = self.square_loss(self._encdec_op, self._output_placeholder)
+      output_tensor.l2_regression(pt.wrap(output_actual).flatten())
       optimizer = self._optimizer(learning_rate=FLAGS.learning_rate)
       self._train_op = pt.apply_optimizer(optimizer, losses=[self._loss])
 
@@ -283,16 +294,6 @@ class DoomModel:
       reconstruction_info)
     ut.print_time(info_string)
 
-  @staticmethod
-  def is_stopping_point(current_epoch, epochs_to_train, stop_every=None, stop_x_times=None,
-                      stop_on_last=True):
-    if stop_on_last and current_epoch + 1 == epochs_to_train:
-      return True
-    if stop_x_times is not None:
-      return current_epoch % np.ceil(epochs_to_train / float(FLAGS.vis_substeps)) == 0
-    if stop_every is not None:
-      return (current_epoch+1) % stop_every == 0
-
   def train(self, epochs_to_train=5):
     meta = self.get_meta()
     ut.print_time('train started: \n%s' % ut.to_file_name(meta))
@@ -323,11 +324,12 @@ class DoomModel:
         # train_set = inp.permute_array_in_series(blurred_set, FLAGS.stride)
         train_set = original_set
 
-        if FLAGS.visualize and DoomModel.is_stopping_point(
+        if FLAGS.visualize and is_stopping_point(
           current_epoch, epochs_to_train, stop_x_times=FLAGS.vis_substeps):
           epoch_reconstruction.append(self.process_in_batches(
             sess, (self._input_placeholder, self._output_placeholder), self._visualize_op, visual_set))
 
+        # TRAIN
         total_loss = 0
         feed = pt.train.feed_numpy(FLAGS.batch_size, train_set, train_set)
         for _, batch in enumerate(feed):
@@ -337,9 +339,10 @@ class DoomModel:
           total_loss += loss
         accuracy = 100000*np.sqrt(total_loss/np.prod(self._batch_shape)/_epoch_size)
 
-        if DoomModel.is_stopping_point(current_epoch, epochs_to_train, FLAGS.save_every):
+        # Post-train scripts
+        if is_stopping_point(current_epoch, epochs_to_train, FLAGS.save_every):
           self.checkpoint(_runner, sess)
-        if DoomModel.is_stopping_point(current_epoch, epochs_to_train, FLAGS.save_encodings_every):
+        if is_stopping_point(current_epoch, epochs_to_train, FLAGS.save_encodings_every):
           encoding = self.process_in_batches(sess, placeholders, self._encode_op, encoding_set)
           encoding = encoding[:len(original_set)]
           visual_reconstruction = self.process_in_batches(

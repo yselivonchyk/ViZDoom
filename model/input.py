@@ -186,7 +186,8 @@ def apply_gaussian(images, sigma=5):
 
 
 def permute_array_in_series(array, series_length):
-  return permute_data_in_series((array,), series_length)[0]
+  res, permutation = permute_data_in_series((array,), series_length)
+  return res[0], permutation
 
 
 def permute_data_in_series(arrays, series_length):
@@ -210,8 +211,28 @@ def permute_data_in_series(arrays, series_length):
   remaining_elements = np.delete(remaining_elements, data_permutation)
   data_permutation = np.concatenate((data_permutation, remaining_elements))
 
-  return[a[data_permutation] for a in arrays]
+  print('assert', len(arrays[0]), len(data_permutation))
+  assert len(data_permutation) == len(arrays[0])
+  return [a[data_permutation] for a in arrays], data_permutation
 
+
+def pad_set(set, batch_size):
+  length = len(set)
+  if length % batch_size == 0:
+    return set
+  padding_len = batch_size - length % batch_size
+  print(set.shape, select_random(padding_len, set=set).shape)
+  return np.concatenate((set, select_random(padding_len, set=set)))
+
+
+def select_random(n, length=None, set=None):
+  assert length is None or set is None
+  length = length if set is None else len(set)
+  select = np.random.permutation(np.arange(length, dtype=np.int))[:n]
+  if set is None:
+    return select
+  else:
+    return set[select]
 
 if __name__ == '__main__':
   print(permute_data_in_series((np.arange(0, 18),), 3))
