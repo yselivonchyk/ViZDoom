@@ -95,21 +95,17 @@ class DoomModel:
 
   # placeholders
   _input = None
-  _encoding = None
-
-  _clamped = None
+  _clamp_filter = None
   _reconstruction = None
-  _clamped_grad = None
 
   # operations
   _encode = None
-  _encoder_loss = None
-  _opt_encoder = None
-  _train_encoder = None
-
   _decode = None
-  _decoder_loss = None
-  _opt_decoder = None
+  _vae_loss = None
+  _reconstruction_loss = None
+
+  _optimizer = None
+  _train_encoder = None
   _train_decoder = None
 
   _visualize_op = None
@@ -195,44 +191,42 @@ class DoomModel:
         with pt.defaults_scope(phase=pt.Phase.train):
           with tf.variable_scope(self.encoder_scope):
             self._build_encoder()
+            self._build_vae_loss()
           with tf.variable_scope(self.decoder_scope):
             self._build_decoder()
+
+          self._reconstruction_loss = self._decode.l2_regression(pt.wrap(self._reconstruction))
+          self._opt_decoder = self._optimizer(learning_rate=FLAGS.learning_rate)
+          self._train = self._opt_decoder.minimize(self._reconstruction_loss)
+
 
   def _build_encoder(self):
     """Construct encoder network: placeholders, operations, optimizer"""
     self._input = tf.placeholder(tf.float32, self._batch_shape, name='input')
-    self._encoding = tf.placeholder(tf.float32, (FLAGS.batch_size, self.layer_narrow), name='encoding')
+    self._clamp_filter = tf.placeholder(tf.float32, (FLAGS.batch_size, self.layer_narrow),
+                                    name='filter')
 
     self._encode = (pt.wrap(self._input)
                     .flatten()
                     .fully_connected(self.layer_encoder, name='enc_hidden')
                     .fully_connected(self.layer_narrow))
 
-    variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=self.encoder_scope)
-    self._encoder_loss = self._encode.l1_regression(pt.wrap(self._encoding))
-    self._opt_encoder = self._optimizer(learning_rate=FLAGS.learning_rate)
-    self._train_encoder = self._opt_encoder.minimize(self._encoder_loss)
+  def _build_vae_loss(self):
+    # self._vae_loss = self._encode.l1_regression(pt.wrap(self._encoding))
+    # self._optimizer = self._optimizer(learning_rate=FLAGS.learning_rate)
+    # self._train_encoder = self._optimizer.minimize(self._vae_loss)
+    pass
 
   def _build_decoder(self, weight_init=tf.truncated_normal):
-    """Construct decoder network: placeholders, operations, optimizer,
-    extract gradient back-prop for encoding layer"""
-    self._clamped = tf.placeholder(tf.float32, (FLAGS.batch_size, self.layer_narrow))
+    """Construct decoder network: placeholders, operations, optimizer,"""
     self._reconstruction = tf.placeholder(tf.float32, self._batch_shape)
-
-    clamped_init = np.zeros((FLAGS.batch_size, self.layer_narrow), dtype=np.float32)
-    self._clamped_variable = tf.Variable(clamped_init, name='clamped')
+    self._clamped = self._encode
 
     self._decode = (
-      pt.wrap(
-        self._clamped_variable.assign(self._clamped))
+      pt.wrap(self._clamped)
         .fully_connected(self.layer_decoder, name='decoder_1')
         .fully_connected(np.prod(self._image_shape), init=weight_init, name='output')
         .reshape(self._batch_shape))
-
-    variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=self.decoder_scope)
-    self._decoder_loss = self._decode.l2_regression(pt.wrap(self._reconstruction))
-    self._opt_decoder = self._optimizer(learning_rate=FLAGS.learning_rate)
-    self._train_decoder = self._opt_decoder.minimize(self._decoder_loss)
 
   # DECODER
 
@@ -335,7 +329,7 @@ class DoomModel:
           # print('_clamped_grad: ', self._clamped_grad)
 
           reconstruction, loss, clamped_gradient, _ = sess.run(                         # 2.1 decode forward+backward
-            [self._decode, self._decoder_loss, self._clamped_grad, self._train_decoder],
+            [self._decode, self._reconstruction_loss, self._clamped_grad, self._train_decoder],
             feed_dict={self._clamped: clamped_enc, self._reconstruction: batch[1]})
           declamped_grad = _declamp_grad(clamped_gradient)                              # 2.2 prepare gradient
 
@@ -449,6 +443,23 @@ if __name__ == '__main__':
   # FLAGS.load_from_checkpoint = './tmp/doom_bs__act|sigmoid__bs|20__h|500|5|500__init|na__inp|cbd4__lr|0.0004__opt|AO'
   epochs = 5
   import sys
+
+  x = tf.Variable(99.0)
+  const = tf.constant(5.0)
+  x_ = x + tf.stop_gradient(-x) + const
+  opt = tf.train.MomentumOptimizer(learning_rate=0.0001, momentum=0.9)
+  train = opt.minimize(x_)
+
+  with tf.Session() as sess:
+    sess.run(tf.initialize_all_variables())
+    print(x_.eval())
+    x_original = x.eval()
+    sess.run(train)
+    print(x.eval() - x_original + const.eval())
+
+
+  exit(0)
+
 
   model = DoomModel()
   args = dict([arg.split('=', maxsplit=1) for arg in sys.argv[1:]])

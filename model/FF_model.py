@@ -182,7 +182,6 @@ class DoomModel:
               .apply(tf.cast, tf.uint8)
 
       self._loss = self.square_loss(self._encdec_op, self._output_placeholder)
-      output_tensor.l2_regression(pt.wrap(output_actual).flatten())
       optimizer = self._optimizer(learning_rate=FLAGS.learning_rate)
       self._train_op = pt.apply_optimizer(optimizer, losses=[self._loss])
 
@@ -280,7 +279,7 @@ class DoomModel:
     epochs_past = DoomModel.get_past_epochs() - current_epoch
     reconstruction_info = ''
     accuracy_info = '' if accuracy is None else '| accuracy %d' % int(accuracy)
-    if FLAGS.visualize and DoomModel.is_stopping_point(current_epoch, epochs,
+    if FLAGS.visualize and is_stopping_point(current_epoch, epochs,
                                           stop_every=FLAGS.vis_substeps):
       reconstruction_info = '| (min, max): (%3d %3d)' % (
       np.min(reconstructions[-1]),
@@ -299,7 +298,7 @@ class DoomModel:
     ut.print_time('train started: \n%s' % ut.to_file_name(meta))
     # return meta, np.random.randn(epochs_to_train)
     ut.configure_folders(FLAGS, meta)
-    accuracy_by_epoch, epoch_reconstruction = [], []
+    accuracy_by_epoch, epoch_reconstruction = [0.0], []
 
     original_set, visual_set = self.fetch_datasets(self._activation)
     padding_length = FLAGS.batch_size - (len(original_set) % FLAGS.batch_size)
@@ -329,13 +328,19 @@ class DoomModel:
           epoch_reconstruction.append(self.process_in_batches(
             sess, (self._input_placeholder, self._output_placeholder), self._visualize_op, visual_set))
 
+
+
         # TRAIN
         total_loss = 0
         feed = pt.train.feed_numpy(FLAGS.batch_size, train_set, train_set)
+        nw = [v for v in tf.all_variables() if "model/narrow/weights" in v.name][0]
+        print(nw.name)
+        nw_grad, = tf.gradients(self._loss, [nw])
         for _, batch in enumerate(feed):
           if len(batch[0]) != FLAGS.batch_size: break
           feed_dict = dict(zip(placeholders, batch))
-          _, loss = sess.run([self._train_op, self._loss], feed_dict=feed_dict)
+          _, loss, grad = sess.run([self._train_op, self._loss, nw_grad], feed_dict=feed_dict)
+          print(grad[:2,:2])
           total_loss += loss
         accuracy = 100000*np.sqrt(total_loss/np.prod(self._batch_shape)/_epoch_size)
 

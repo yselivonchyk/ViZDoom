@@ -211,7 +211,7 @@ def permute_data_in_series(arrays, series_length):
   remaining_elements = np.delete(remaining_elements, data_permutation)
   data_permutation = np.concatenate((data_permutation, remaining_elements))
 
-  print('assert', len(arrays[0]), len(data_permutation))
+  # print('assert', len(arrays[0]), len(data_permutation))
   assert len(data_permutation) == len(arrays[0])
   return [a[data_permutation] for a in arrays], data_permutation
 

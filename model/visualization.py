@@ -94,6 +94,24 @@ def _needs_hessian(manifold):
   return False
 
 
+def images_to_uint8(func):
+  def normalize(arr):
+    if type(arr) == np.ndarray and arr.dtype != np.uint8 and len(arr.shape) >= 3:
+      if np.min(arr) < 0:
+        print('image array normalization: negative values')
+      if np.max(arr) < 4:
+        arr *= 255
+      return arr.astype(np.uint8)
+    return arr
+
+  def func_wrapper(*args, **kwargs):
+    new_args = [normalize(el) for el in args]
+    new_kwargs = {k: normalize(kwargs[k]) for _, k in enumerate(kwargs)}
+    return func(*tuple(new_args), **new_kwargs)
+  return func_wrapper
+
+
+@images_to_uint8
 def visualize_encoding(encodings, folder=None, meta={}, original=None, reconstruction=None):
   if np.max(original) < 10:
     original = (original * 255).astype(np.uint8)
@@ -109,6 +127,7 @@ def visualize_encoding(encodings, folder=None, meta={}, original=None, reconstru
     assert len(original) == len(reconstruction)
     fig = plt.figure()
 
+    print(np.max(reconstruction))
     column_picture, height = stitch_images(original, reconstruction)
     if encodings.shape[1] <= 3:
       picture = reshape_images(column_picture, height, proportion=1)
