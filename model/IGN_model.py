@@ -241,6 +241,9 @@ class DoomModel:
     self._opt_decoder = self._optimizer(learning_rate=FLAGS.learning_rate)
     self._train_decoder = self._opt_decoder.minimize(self._decoder_loss)
 
+    self._clamped_grad, = tf.gradients(self._decoder_loss, [self._clamped_variable])
+
+
   # DECODER
 
   def build_standalone_decoder(self):
@@ -310,14 +313,19 @@ class DoomModel:
     ut.print_time('train started: \n%s' % ut.to_file_name(meta))
     # return meta, np.random.randn(epochs_to_train)
     ut.configure_folders(FLAGS, meta)
+
     self._dataset = self.fetch_datasets(self._activation)
     self.build_model()
     self._register_training_start()
+
     with tf.Session() as sess:
       sess.run(tf.initialize_all_variables())
+      self._saver = tf.train.Saver()
+      self._writer = tf.train.SummaryWriter(FLAGS.logdir, sess.graph)
+
 
       if FLAGS.load_state and os.path.exists(self.get_checkpoint_path()):
-        tf.train.Saver().restore(sess, self.get_checkpoint_path())
+        self._saver.restore(sess, self.get_checkpoint_path())
         ut.print_info('Restored requested. Previous epoch: %d' % self.get_past_epochs(), color=31)
 
       for current_epoch in xrange(epochs_to_train):
@@ -330,28 +338,21 @@ class DoomModel:
           encoding, = sess.run([self._encode], feed_dict={self._input: batch[0]})       # 1.1 encode forward
           clamped_enc = _clamp(encoding)                                                # 1.2 clamp
 
-          self._clamped_grad, = tf.gradients(self._decoder_loss, [self._clamped_variable])
           sess.run(self._assign_clamped, feed_dict={self._clamped:clamped_enc})
-
           reconstruction, loss, clamped_gradient, _ = sess.run(                         # 2.1 decode forward+backward
             [self._decode, self._decoder_loss, self._clamped_grad, self._train_decoder],
             feed_dict={self._clamped: clamped_enc, self._reconstruction: batch[1]})
           declamped_grad = _declamp_grad(clamped_gradient)                              # 2.2 prepare gradient
 
-          # print('\ngrad', declamped_grad[0], '\nenco', encoding[0], '\nvarn',
-          #       self._clamped_variable.eval()[0], '\ntarg', (encoding-declamped_grad)[0])
           # TODO: invert gradient
           # TODO: sum gradient with differences. Or do just that
 
-          nw = [v for v in tf.all_variables() if "enc/narrow/weights" in v.name][0]
-          nw_grad, = tf.gradients(self._encoder_loss, [nw])
-
-          _, grad, step = sess.run(                                                     # 3.0 encode backward path
-            [self._train_encoder, nw_grad, self._step],
+          _, step = sess.run(                                                     # 3.0 encode backward path
+            [self._train_encoder, self._step],
             feed_dict={self._input: batch[0], self._encoding: encoding-declamped_grad})          # Profit
-          # print(grad[:2,:2])
           self._register_batch(batch, encoding, clamped_enc, reconstruction, loss, declamped_grad)
         self._register_epoch(current_epoch, epochs_to_train, permutation, sess)
+
       meta = self._register_training()
     return meta, self._stats['epoch_accuracy']
 
@@ -381,7 +382,7 @@ class DoomModel:
   @ut.timeit
   def _register_epoch(self, epoch, total_epochs, permutation, sess):
     if is_stopping_point(epoch, total_epochs, FLAGS.save_every):
-      tf.train.Saver().save(sess, self.get_checkpoint_path())
+      self._saver.save(sess, self.get_checkpoint_path())
 
     accuracy = 100000 * np.sqrt(self._epoch_stats['total_loss'] / np.prod(self._batch_shape) / epoch_size)
     self._epoch_stats['permutation_reverse'] = np.argsort(permutation)
@@ -413,9 +414,9 @@ class DoomModel:
     ut.reconstruct_images_epochs(np.asarray(self._stats['epoch_reconstructions']), original_vis_set,
                                  save_params=meta, img_shape=self._image_shape)
     ut.print_time('Best Quality: %f for %s' % (best_acc, ut.to_file_name(meta)))
-
     return meta
 
+  @ut.timeit
   def save_encodings(self, reconstruction, accuracy):
     encodings = np.vstack(self._epoch_stats['encoding'][:self._stats['ds_length']])
     encodings = encodings[self._epoch_stats['permutation_reverse']]
@@ -426,6 +427,7 @@ class DoomModel:
     np.savetxt(projection_file, encodings)
     vis.visualize_encoding(encodings, FLAGS.save_path, meta, visual_set, reconstruction)
 
+  @ut.timeit
   def print_epoch_info(self, accuracy, current_epoch, reconstruction, epochs):
     epochs_past = self.get_past_epochs() - current_epoch
     reconstruction_info = ''
@@ -456,7 +458,7 @@ def parse_params():
 
 if __name__ == '__main__':
   # FLAGS.load_from_checkpoint = './tmp/doom_bs__act|sigmoid__bs|20__h|500|5|500__init|na__inp|cbd4__lr|0.0004__opt|AO'
-  epochs = 50
+  epochs = 10
   import sys
 
   # x = 100

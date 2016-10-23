@@ -111,6 +111,7 @@ def images_to_uint8(func):
   return func_wrapper
 
 
+@ut.timeit
 @images_to_uint8
 def visualize_encoding(encodings, folder=None, meta={}, original=None, reconstruction=None):
   if np.max(original) < 10:
