@@ -19,8 +19,8 @@ from tensorflow.python.ops import gradients
 from prettytensor.tutorial import data_utils
 
 
-tf.app.flags.DEFINE_string('input_path', '../data/tmp/free2/img/', 'input folder')
-tf.app.flags.DEFINE_integer('batch_size', 50, 'Batch size')
+tf.app.flags.DEFINE_string('input_path', '../data/tmp/romb8/img/', 'input folder')
+tf.app.flags.DEFINE_integer('batch_size', 25, 'Batch size')
 tf.app.flags.DEFINE_float('learning_rate', 0.0001, 'Create visualization of ')
 tf.app.flags.DEFINE_integer('stride', 2, 'Data is permuted in series of INT consecutive inputs')
 
@@ -36,6 +36,7 @@ tf.app.flags.DEFINE_integer('vis_substeps', 10, 'Use INT intermediate images')
 
 tf.app.flags.DEFINE_integer('save_encodings_every', 5, 'Save model state every INT epochs')
 
+tf.app.flags.DEFINE_integer('drag_divider', 10, 'Decrease dragging gradient this many times')
 tf.app.flags.DEFINE_integer('sigma', 10, 'Image blur maximum effect')
 tf.app.flags.DEFINE_integer('sigma_step', 200, 'Decrease image blur every X epochs')
 
@@ -61,12 +62,26 @@ def get_variable(name):
   return var
 
 
-def _clamp(encoding):
-  return encoding
+def _clamp(encoding, filter):
+  filter_neg = np.ones(len(filter), dtype=filter.dtype) - filter
+  # print('\nf_n', filter_neg)
+  avg = encoding.mean(axis=0)*filter_neg
+  # print('avg', avg, encoding[0])
+  # print('avg', encoding.mean(axis=0), encoding[-1], encoding[-1]-avg)
+  grad = encoding*filter_neg - avg
+  encoding = encoding * filter + avg
+  # print('enc', encoding[0], encoding[1])
+  # print(np.hstack((encoding, grad)))
+  # print('vae', grad[0], grad[1])
+  return encoding, grad
 
 
-def _declamp_grad(grad):
-  return grad
+def _declamp_grad(vae_grad, reco_grad, filter):
+  # print('vae, reco', np.abs(vae_grad).mean(), np.abs((reco_grad*filter)).mean())
+  # res = vae_grad/FLAGS.drag_divider + reco_grad*filter
+  res = vae_grad + reco_grad*filter
+  # print('\nvae: ', vae_grad[0], '\nrec:', reco_grad[1], '\nres:', res[0])
+  return res
 
 
 def _get_stats_template():
@@ -82,7 +97,7 @@ def _get_stats_template():
 
 
 class DoomModel:
-  model_id = 'cgi'
+  model_id = 'ign'
   decoder_scope = 'dec'
   encoder_scope = 'enc'
 
@@ -283,7 +298,12 @@ class DoomModel:
   # TRAIN
 
   def fetch_datasets(self, activation_func_bounds):
-    original_data, labels = inp.get_images(FLAGS.input_path)
+    original_data, filters = inp.get_images(FLAGS.input_path)
+    print(filters)
+
+    original_data, filters = self.bloody_hack_filterbatches(original_data, filters)
+    print(original_data.shape, filters.shape)
+
     original_data = inp.rescale_ds(original_data, activation_func_bounds.min, activation_func_bounds.max)
     # original_data, labels = original_data[:120], labels[:120]
     # print(original_data.shape, labels.shape)
@@ -295,7 +315,25 @@ class DoomModel:
     global epoch_size, test_size
     epoch_size = math.ceil(len(original_data) / FLAGS.batch_size)
     test_size = math.ceil(len(original_data) / FLAGS.batch_size)
-    return original_data
+    return original_data, filters
+
+  def bloody_hack_filterbatches(self, original_data, filters):
+    survivers = np.zeros(len(filters), dtype=np.uint8)
+    j, prev = 0, None
+    for _, f in enumerate(filters):
+      if prev is None or prev[0] == f[0] and prev[1] == f[1]:
+        j += 1
+      else:
+        k = j // FLAGS.batch_size
+        for i in range(k):
+          start = _ - j + math.ceil(j / k * i)
+          survivers[start:start + FLAGS.batch_size] += 1
+        # print(j, survivers[_-j:_])
+        j = 0
+      prev = f
+    original_data = np.asarray([x for i, x in enumerate(original_data) if survivers[i] > 0])
+    filters = np.asarray([x for i, x in enumerate(filters) if survivers[i] > 0])
+    return original_data, filters
 
   def set_layer_sizes(self, h):
     self.layer_encoder = h[0]
@@ -314,45 +352,48 @@ class DoomModel:
     # return meta, np.random.randn(epochs_to_train)
     ut.configure_folders(FLAGS, meta)
 
-    self._dataset = self.fetch_datasets(self._activation)
+    self._dataset, self._filters = self.fetch_datasets(self._activation)
     self.build_model()
     self._register_training_start()
 
     with tf.Session() as sess:
       sess.run(tf.initialize_all_variables())
       self._saver = tf.train.Saver()
-      self._writer = tf.train.SummaryWriter(FLAGS.logdir, sess.graph)
-
 
       if FLAGS.load_state and os.path.exists(self.get_checkpoint_path()):
         self._saver.restore(sess, self.get_checkpoint_path())
         ut.print_info('Restored requested. Previous epoch: %d' % self.get_past_epochs(), color=31)
 
+      # TRAIN
       for current_epoch in xrange(epochs_to_train):
-        train_set, permutation = inp.permute_array_in_series(self._dataset, FLAGS.stride)
-        train_set = inp.pad_set(train_set, FLAGS.batch_size)
+        (train_set, filters), permutation = inp.permute_data_in_series((self._dataset,
+                                                                        self._filters),
+                                                                       FLAGS.batch_size,
+                                                                       allow_shift=False)
 
-        # TRAIN
-        feed = pt.train.feed_numpy(FLAGS.batch_size, train_set, train_set)
+        feed = pt.train.feed_numpy(FLAGS.batch_size, train_set, filters)
         for _, batch in enumerate(feed):
-          encoding, = sess.run([self._encode], feed_dict={self._input: batch[0]})       # 1.1 encode forward
-          clamped_enc = _clamp(encoding)                                                # 1.2 clamp
+          filter = batch[1][0]
+          assert batch[1][0,0] == batch[1][-1,0]
+          encoding, = sess.run([self._encode], feed_dict={self._input: batch[0]})  # 1.1 encode forward
+          clamped_enc, vae_grad = _clamp(encoding, filter)               # 1.2 # clamp
 
           sess.run(self._assign_clamped, feed_dict={self._clamped:clamped_enc})
-          reconstruction, loss, clamped_gradient, _ = sess.run(                         # 2.1 decode forward+backward
+          reconstruction, loss, clamped_gradient, _ = sess.run(          # 2.1 decode forward+backward
             [self._decode, self._decoder_loss, self._clamped_grad, self._train_decoder],
-            feed_dict={self._clamped: clamped_enc, self._reconstruction: batch[1]})
-          declamped_grad = _declamp_grad(clamped_gradient)                              # 2.2 prepare gradient
+            feed_dict={self._clamped: clamped_enc, self._reconstruction: batch[0]})
+
+          declamped_grad = _declamp_grad(vae_grad, clamped_gradient, filter) # 2.2 prepare gradient
 
           # TODO: invert gradient
           # TODO: sum gradient with differences. Or do just that
 
-          _, step = sess.run(                                                     # 3.0 encode backward path
+          _, step = sess.run(                                            # 3.0 encode backward path
             [self._train_encoder, self._step],
             feed_dict={self._input: batch[0], self._encoding: encoding-declamped_grad})          # Profit
           self._register_batch(batch, encoding, clamped_enc, reconstruction, loss, declamped_grad)
         self._register_epoch(current_epoch, epochs_to_train, permutation, sess)
-
+      self._writer = tf.train.SummaryWriter(FLAGS.logdir, sess.graph)
       meta = self._register_training()
     return meta, self._stats['epoch_accuracy']
 
@@ -379,7 +420,6 @@ class DoomModel:
     self._epoch_stats['declamped_drad'].append(declamped_drad)
     self._epoch_stats['total_loss'] += loss
 
-  @ut.timeit
   def _register_epoch(self, epoch, total_epochs, permutation, sess):
     if is_stopping_point(epoch, total_epochs, FLAGS.save_every):
       self._saver.save(sess, self.get_checkpoint_path())
@@ -416,7 +456,6 @@ class DoomModel:
     ut.print_time('Best Quality: %f for %s' % (best_acc, ut.to_file_name(meta)))
     return meta
 
-  @ut.timeit
   def save_encodings(self, reconstruction, accuracy):
     encodings = np.vstack(self._epoch_stats['encoding'][:self._stats['ds_length']])
     encodings = encodings[self._epoch_stats['permutation_reverse']]
@@ -427,7 +466,6 @@ class DoomModel:
     np.savetxt(projection_file, encodings)
     vis.visualize_encoding(encodings, FLAGS.save_path, meta, visual_set, reconstruction)
 
-  @ut.timeit
   def print_epoch_info(self, accuracy, current_epoch, reconstruction, epochs):
     epochs_past = self.get_past_epochs() - current_epoch
     reconstruction_info = ''
@@ -458,7 +496,7 @@ def parse_params():
 
 if __name__ == '__main__':
   # FLAGS.load_from_checkpoint = './tmp/doom_bs__act|sigmoid__bs|20__h|500|5|500__init|na__inp|cbd4__lr|0.0004__opt|AO'
-  epochs = 10
+  epochs = 500
   import sys
 
   # x = 100

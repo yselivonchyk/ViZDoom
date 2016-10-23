@@ -254,6 +254,8 @@ def mkdir(folders):
 
 
 def configure_folders(FLAGS, meta):
+  folder_meta = meta.copy()
+  folder_meta.pop('init')
   folder_name = to_file_name(meta) + '/'
   checkpoint_folder = os.path.join(TEMP_FOLDER, folder_name)
   log_folder = os.path.join(checkpoint_folder, 'log')

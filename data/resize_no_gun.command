@@ -13,5 +13,5 @@ find . -mindepth 3 -maxdepth 3 -type d -print | grep -v 'tmp' | while read d; do
   len=$((len-7))
   echo ${stringA}
   stringA=${stringA::len}
-  (cd $d && mogrify -path $stringA -resize 160x120 -crop 80x80+40+0  -quality 100  *.jpg)
+  (cd $d && mogrify -path $stringA -resize 160x120 -crop 160x80+0+0  -quality 100  *.jpg)
 done

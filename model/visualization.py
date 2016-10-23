@@ -51,7 +51,7 @@ def print_data_only(data, file_name, fig=None, interactive=False):
     subplot.scatter(data[:, 0], data[:, 1], c=colors,
                     cmap=COLOR_MAP, picker=PICKER_SENSITIVITY)
   if not interactive:
-    save_fig(file_name)
+    save_fig(file_name, fig)
 
 
 def create_gif_from_folder(folder):
@@ -111,8 +111,8 @@ def images_to_uint8(func):
   return func_wrapper
 
 
-@ut.timeit
 @images_to_uint8
+@ut.timeit
 def visualize_encoding(encodings, folder=None, meta={}, original=None, reconstruction=None):
   if np.max(original) < 10:
     original = (original * 255).astype(np.uint8)
@@ -121,14 +121,14 @@ def visualize_encoding(encodings, folder=None, meta={}, original=None, reconstru
   file_path = None
   if folder:
     meta['postfix'] = 'pca'
-    file_path = ut.to_file_name(meta, folder, 'png')
+    file_path = ut.to_file_name(meta, folder, 'jpg')
   encodings = manual_pca(encodings)
 
   if original is not None:
     assert len(original) == len(reconstruction)
     fig = plt.figure()
 
-    print(np.max(reconstruction))
+    print('reco max:', np.max(reconstruction))
     column_picture, height = stitch_images(original, reconstruction)
     if encodings.shape[1] <= 3:
       picture = reshape_images(column_picture, height, proportion=1)
@@ -205,17 +205,20 @@ def visualize_encodings(encodings, file_name=None,
   # visualize_data_same(encodings, grid=grid, places=np.arange(13, 17), dims_as_colors=True)
   # fig.tight_layout()
   if not interactive:
-    save_fig(file_name)
+    save_fig(file_name, fig)
   ut.print_time('visualization finished')
 
 
-def save_fig(file_name):
+def save_fig(file_name, fig=None):
   if not file_name:
     plt.show()
   else:
     plt.savefig(file_name, dpi=300, facecolor='w', edgecolor='w',
                 transparent=False, bbox_inches='tight', pad_inches=0.1,
                 frameon=None)
+    if fig is not None:
+      plt.close(fig)
+
 
 
 def _random_split(sequence, length, original):
@@ -383,7 +386,7 @@ def rerun_embeddings():
             # print('failed to reconstruct learning rate', file)
             continue
           layer_sizes = list(map(int, layer_info.split('|')[1:]))
-          print(learning_rate, layer_sizes)
+          print('emb rerun', learning_rate, layer_sizes)
           #
 
 
@@ -391,7 +394,7 @@ def print_side_by_side(*args):
   lines, height, width, channels = args[0].shape
   min = 0   #int(args[0].mean())
   print(min)
-  print(lines, height)
+  print('psbs', lines, height)
 
   stack = args[0]
   if len(args) > 1:

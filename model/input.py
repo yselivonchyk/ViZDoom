@@ -87,23 +87,26 @@ def get_action_data(folder):
   file = os.path.join(folder, 'action.txt')
   if not os.path.exists(file):
     return []
-  action_data = json.load(open(file, 'r'))[1:]
+  action_data = json.load(open(file, 'r'))[:]
   # print(action_data)
   res = []
-  for i, action in enumerate(action_data):
-    res.append(
-      (
-        action[0],
-        action[1],
-        action[2][3] or action[2][4] or action[2][5] or action[2][6],
-        action[2][18] != 0
-      )
-    )
-  return res
+  # for i, action in enumerate(action_data):
+  #   print(action)
+  #   res.append(
+  #     (
+  #       action[0],
+  #       action[1],
+  #       action[2][3] or action[2][4] or action[2][5] or action[2][6],
+  #       action[2][18] != 0
+  #     )
+  #   )
+  # print([print(x[0]) for x in action_data[0:10]])
+  res =  [x[3][:2] for x in action_data]
+  return np.abs(np.asarray(res))
 
 
 def get_images(folder, at_most=None):
-  get_action_data(folder)
+  action_data = get_action_data(folder)
   if _is_combination_of_image_depth(folder):
     depth, d_labels = _get_images(os.path.join(folder, 'dep'))
     image, i_labels = _get_images(os.path.join(folder, 'img'))
@@ -116,9 +119,11 @@ def get_images(folder, at_most=None):
     for i in range(len(depth)):
       res[i,:,:,:3] = image[i]
       res[i,:,:,3] = depth[i,:,:,0]
-    return res, i_labels
+    return res, action_data
   else:
-    return _get_images(folder, at_most)
+    images, i_labels = _get_images(folder, at_most)
+    # print('/', images.shape, action_data.shape)
+    return images, action_data
 
 
 def _get_images(folder, at_most=None):
@@ -185,19 +190,21 @@ def apply_gaussian(images, sigma=5):
   return output
 
 
-def permute_array_in_series(array, series_length):
+def permute_array_in_series(array, series_length, allow_shift=True):
   res, permutation = permute_data_in_series((array,), series_length)
   return res[0], permutation
 
 
-def permute_data_in_series(arrays, series_length):
+def permute_data_in_series(arrays, series_length, allow_shift=True):
   shift_possibilities = len(arrays[0]) % series_length
   series_count = int(len(arrays[0]) / series_length)
 
-  if shift_possibilities == 0:
-    shift_possibilities += series_length
-    series_count -= 1
-  shift = np.random.randint(0, shift_possibilities+1, 1, dtype=np.int32)[0]
+  shift = 0
+  if allow_shift:
+    if shift_possibilities == 0:
+      shift_possibilities += series_length
+      series_count -= 1
+    shift = np.random.randint(0, shift_possibilities+1, 1, dtype=np.int32)[0]
 
   series = np.arange(0, series_count * series_length)\
     .astype(np.int32)\
@@ -221,7 +228,7 @@ def pad_set(set, batch_size):
   if length % batch_size == 0:
     return set
   padding_len = batch_size - length % batch_size
-  print(set.shape, select_random(padding_len, set=set).shape)
+  # print('pad set', set.shape, select_random(padding_len, set=set).shape)
   return np.concatenate((set, select_random(padding_len, set=set)))
 
 

@@ -17,7 +17,7 @@ import prettytensor as pt
 import prettytensor.bookkeeper as bookkeeper
 from prettytensor.tutorial import data_utils
 
-tf.app.flags.DEFINE_string('input_path', '../data/tmp/free2/img/', 'input folder')
+tf.app.flags.DEFINE_string('input_path', '../data/tmp/romb8/img/', 'input folder')
 tf.app.flags.DEFINE_integer('batch_size', 50, 'Batch size')
 tf.app.flags.DEFINE_float('learning_rate', 0.0001, 'Create visualization of ')
 tf.app.flags.DEFINE_integer('stride', 2, 'Data is permuted in series of INT consecutive inputs')
@@ -334,12 +334,11 @@ class DoomModel:
         total_loss = 0
         feed = pt.train.feed_numpy(FLAGS.batch_size, train_set, train_set)
         nw = [v for v in tf.all_variables() if "model/narrow/weights" in v.name][0]
-        print(nw.name)
-        nw_grad, = tf.gradients(self._loss, [nw])
+        # nw_grad, = tf.gradients(self._loss, [nw])
         for _, batch in enumerate(feed):
           if len(batch[0]) != FLAGS.batch_size: break
           feed_dict = dict(zip(placeholders, batch))
-          _, loss, grad = sess.run([self._train_op, self._loss, nw_grad], feed_dict=feed_dict)
+          _, loss = sess.run([self._train_op, self._loss], feed_dict=feed_dict)
           # print(grad[:2,:2])
           total_loss += loss
         accuracy = 100000*np.sqrt(total_loss/np.prod(self._batch_shape)/_epoch_size)
