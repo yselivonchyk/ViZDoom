@@ -18,7 +18,7 @@ import prettytensor.bookkeeper as bookkeeper
 from prettytensor.tutorial import data_utils
 
 tf.app.flags.DEFINE_string('input_path', '../data/tmp/free2/img/', 'input folder')
-tf.app.flags.DEFINE_integer('batch_size', 30, 'Batch size')
+tf.app.flags.DEFINE_integer('batch_size', 50, 'Batch size')
 tf.app.flags.DEFINE_float('learning_rate', 0.0001, 'Create visualization of ')
 tf.app.flags.DEFINE_integer('stride', 2, 'Data is permuted in series of INT consecutive inputs')
 
@@ -31,9 +31,9 @@ tf.app.flags.DEFINE_boolean('visualize', True, 'Create visualization of decoded 
 tf.app.flags.DEFINE_integer('vis_substeps', 10, 'Use INT intermediate images')
 
 tf.app.flags.DEFINE_boolean('load_state', True, 'Create visualization of ')
-tf.app.flags.DEFINE_integer('save_every', 2, 'Save model state every INT epochs')
+tf.app.flags.DEFINE_integer('save_every', 20, 'Save model state every INT epochs')
 tf.app.flags.DEFINE_integer('acc_every', 25, 'Calculate accuracy every INT epochs')
-tf.app.flags.DEFINE_integer('save_encodings_every', 250, 'Save model state every INT epochs')
+tf.app.flags.DEFINE_integer('save_encodings_every', 10, 'Save model state every INT epochs')
 
 tf.app.flags.DEFINE_integer('sigma', 10, 'Image blur maximum effect')
 tf.app.flags.DEFINE_integer('sigma_step', 200, 'Decrease image blur every X epochs')
@@ -264,7 +264,7 @@ class DoomModel:
     return int(bookkeeper.global_step().eval() / _epoch_size)
 
   def save_encodings(self, encodings, visual_set, reconstruction, accuracy):
-    epochs_past = DoomModel.get_past_epochs()
+    epochs_past = self.get_past_epochs()
     meta = {'suf': 'encodings', 'e': int(epochs_past), 'er': int(accuracy)}
     projection_file = ut.to_file_name(meta, FLAGS.save_path, 'txt')
     np.savetxt(projection_file, encodings)
@@ -276,7 +276,7 @@ class DoomModel:
     runner._saver.save(sess, FLAGS.save_path, 9999)
 
   def print_epoch_info(self, accuracy, current_epoch, reconstructions, epochs):
-    epochs_past = DoomModel.get_past_epochs() - current_epoch
+    epochs_past = self.get_past_epochs() - current_epoch
     reconstruction_info = ''
     accuracy_info = '' if accuracy is None else '| accuracy %d' % int(accuracy)
     if FLAGS.visualize and is_stopping_point(current_epoch, epochs,
@@ -340,7 +340,7 @@ class DoomModel:
           if len(batch[0]) != FLAGS.batch_size: break
           feed_dict = dict(zip(placeholders, batch))
           _, loss, grad = sess.run([self._train_op, self._loss, nw_grad], feed_dict=feed_dict)
-          print(grad[:2,:2])
+          # print(grad[:2,:2])
           total_loss += loss
         accuracy = 100000*np.sqrt(total_loss/np.prod(self._batch_shape)/_epoch_size)
 
@@ -376,7 +376,7 @@ def parse_params():
 
 if __name__ == '__main__':
   # FLAGS.load_from_checkpoint = './tmp/doom_bs__act|sigmoid__bs|20__h|500|5|500__init|na__inp|cbd4__lr|0.0004__opt|AO'
-  epochs = 5
+  epochs = 500
   import sys
 
   model = DoomModel()
