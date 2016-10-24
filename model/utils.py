@@ -256,7 +256,9 @@ def mkdir(folders):
 def configure_folders(FLAGS, meta):
   folder_meta = meta.copy()
   folder_meta.pop('init')
-  folder_name = to_file_name(meta) + '/'
+  folder_meta.pop('lr')
+  folder_meta.pop('opt')
+  folder_name = to_file_name(folder_meta) + '/'
   checkpoint_folder = os.path.join(TEMP_FOLDER, folder_name)
   log_folder = os.path.join(checkpoint_folder, 'log')
   mkdir([TEMP_FOLDER, IMAGE_FOLDER, checkpoint_folder, log_folder])

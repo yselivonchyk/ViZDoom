@@ -22,7 +22,6 @@ from prettytensor.tutorial import data_utils
 tf.app.flags.DEFINE_string('input_path', '../data/tmp/romb8.2.2/img/', 'input folder')
 tf.app.flags.DEFINE_integer('batch_size', 25, 'Batch size')
 tf.app.flags.DEFINE_float('learning_rate', 0.0001, 'Create visualization of ')
-tf.app.flags.DEFINE_integer('stride', 2, 'Data is permuted in series of INT consecutive inputs')
 
 tf.app.flags.DEFINE_string('suffix', 'run', 'Suffix to use to distinguish models by purpose')
 
@@ -100,7 +99,7 @@ def _get_stats_template():
 
 
 class DoomModel:
-  model_id = 'ign3'
+  model_id = 'ign'
   decoder_scope = 'dec'
   encoder_scope = 'enc'
 
@@ -174,7 +173,6 @@ class DoomModel:
     meta['bs'] = FLAGS.batch_size
     meta['h'] = self.get_layer_info()
     meta['opt'] = self._optimizer
-    meta['seq'] = FLAGS.stride
     meta['inp'] = inp.get_input_name(FLAGS.input_path)
     meta['div'] = '%.1f' % FLAGS.drag_divider
     return meta
@@ -195,7 +193,6 @@ class DoomModel:
     FLAGS.batch_size = meta['bs']
     FLAGS.input_path = meta['input_path']
     FLAGS.learning_rate = meta['lr']
-    FLAGS.stride = int(meta['str']) if 'str' in meta else 2
     FLAGS.drag_divider = float(meta['div'])
     self._weight_init = meta['init']
     self._optimizer = tf.train.AdadeltaOptimizer \
@@ -235,9 +232,10 @@ class DoomModel:
                     .fully_connected(self.layer_encoder, name='enc_hidden')
                     .fully_connected(self.layer_narrow, name='narrow'))
 
-    variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=self.encoder_scope)
+    # variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=self.encoder_scope)
     self._encoder_loss = self._encode.l1_regression(pt.wrap(self._encoding))
-    self._opt_encoder = self._optimizer(learning_rate=FLAGS.learning_rate)
+    ut.print_info('new learning rate: %.8f (%f)' % (FLAGS.learning_rate/FLAGS.batch_size, FLAGS.learning_rate))
+    self._opt_encoder = self._optimizer(learning_rate=FLAGS.learning_rate/FLAGS.batch_size)
     self._train_encoder = self._opt_encoder.minimize(self._encoder_loss)
 
   def _build_decoder(self, weight_init=tf.truncated_normal):
@@ -257,9 +255,9 @@ class DoomModel:
         .fully_connected(np.prod(self._image_shape), init=weight_init, name='output')
         .reshape(self._batch_shape))
 
-    variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=self.decoder_scope)
+    # variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope=self.decoder_scope)
     self._decoder_loss = self._decode.l2_regression(pt.wrap(self._reconstruction))
-    self._opt_decoder = self._optimizer(learning_rate=FLAGS.learning_rate)
+    self._opt_decoder = self._optimizer(learning_rate=FLAGS.learning_rate/FLAGS.batch_size)
     self._train_decoder = self._opt_decoder.minimize(self._decoder_loss)
 
     self._clamped_grad, = tf.gradients(self._decoder_loss, [self._clamped_variable])
@@ -520,8 +518,6 @@ if __name__ == '__main__':
   if 'epochs' in args:
     epochs = int(args['epochs'])
     ut.print_info('epochs: %d' % epochs, color=36)
-  if 'stride' in args:
-    FLAGS.stride = int(args['stride'])
   if 'sigma' in args:
     FLAGS.sigma = int(args['sigma'])
   if 'suffix' in args:
