@@ -19,7 +19,7 @@ from tensorflow.python.ops import gradients
 from prettytensor.tutorial import data_utils
 
 
-tf.app.flags.DEFINE_string('input_path', '../data/tmp/romb8/img/', 'input folder')
+tf.app.flags.DEFINE_string('input_path', '../data/tmp/romb8.2.2/img/', 'input folder')
 tf.app.flags.DEFINE_integer('batch_size', 25, 'Batch size')
 tf.app.flags.DEFINE_float('learning_rate', 0.0001, 'Create visualization of ')
 tf.app.flags.DEFINE_integer('stride', 2, 'Data is permuted in series of INT consecutive inputs')
@@ -27,16 +27,16 @@ tf.app.flags.DEFINE_integer('stride', 2, 'Data is permuted in series of INT cons
 tf.app.flags.DEFINE_string('suffix', 'run', 'Suffix to use to distinguish models by purpose')
 
 tf.app.flags.DEFINE_string('save_path', './tmp/checkpoint', 'Where to save the model checkpoints.')
-tf.app.flags.DEFINE_integer('save_every', 10, 'Save model state every INT epochs')
+tf.app.flags.DEFINE_integer('save_every', 25, 'Save model state every INT epochs')
 tf.app.flags.DEFINE_boolean('load_state', True, 'Load state if possible ')
 tf.app.flags.DEFINE_string('logdir', '', 'where to save logs.')
 
 tf.app.flags.DEFINE_boolean('visualize', True, 'Create visualization of decoded images')
 tf.app.flags.DEFINE_integer('vis_substeps', 10, 'Use INT intermediate images')
 
-tf.app.flags.DEFINE_integer('save_encodings_every', 5, 'Save model state every INT epochs')
+tf.app.flags.DEFINE_integer('save_encodings_every', 10, 'Save model state every INT epochs')
 
-tf.app.flags.DEFINE_integer('drag_divider', 10, 'Decrease dragging gradient this many times')
+tf.app.flags.DEFINE_float('drag_divider', 5.0, 'Decrease dragging gradient this many times')
 tf.app.flags.DEFINE_integer('sigma', 10, 'Image blur maximum effect')
 tf.app.flags.DEFINE_integer('sigma_step', 200, 'Decrease image blur every X epochs')
 
@@ -45,6 +45,7 @@ tf.app.flags.DEFINE_string('load_from_checkpoint', None, 'where to save logs.')
 
 FLAGS = tf.app.flags.FLAGS
 
+DEV = False
 
 def is_stopping_point(current_epoch, epochs_to_train, stop_every=None, stop_x_times=None,
                       stop_on_last=True):
@@ -78,9 +79,11 @@ def _clamp(encoding, filter):
 
 def _declamp_grad(vae_grad, reco_grad, filter):
   # print('vae, reco', np.abs(vae_grad).mean(), np.abs((reco_grad*filter)).mean())
-  # res = vae_grad/FLAGS.drag_divider + reco_grad*filter
-  res = vae_grad + reco_grad*filter
-  # print('\nvae: ', vae_grad[0], '\nrec:', reco_grad[1], '\nres:', res[0])
+  res = vae_grad/FLAGS.drag_divider + reco_grad*filter
+  # res = vae_grad + reco_grad*filter
+  # print('\nvae: %s\nrec: %s\nres %s' % (ut.print_float_list(vae_grad[1]),
+  #                                       ut.print_float_list(reco_grad[1]),
+  #                                       ut.print_float_list(res[0])))
   return res
 
 
@@ -97,7 +100,7 @@ def _get_stats_template():
 
 
 class DoomModel:
-  model_id = 'ign'
+  model_id = 'ign3'
   decoder_scope = 'dec'
   encoder_scope = 'enc'
 
@@ -173,6 +176,7 @@ class DoomModel:
     meta['opt'] = self._optimizer
     meta['seq'] = FLAGS.stride
     meta['inp'] = inp.get_input_name(FLAGS.input_path)
+    meta['div'] = '%.1f' % FLAGS.drag_divider
     return meta
 
   def save_meta(self):
@@ -192,6 +196,7 @@ class DoomModel:
     FLAGS.input_path = meta['input_path']
     FLAGS.learning_rate = meta['lr']
     FLAGS.stride = int(meta['str']) if 'str' in meta else 2
+    FLAGS.drag_divider = float(meta['div'])
     self._weight_init = meta['init']
     self._optimizer = tf.train.AdadeltaOptimizer \
       if 'Adam' in meta['opt'] \
@@ -200,6 +205,7 @@ class DoomModel:
     self.layer_encoder = meta['h'][0]
     self.layer_narrow = meta['h'][1]
     self.layer_decoder = meta['h'][2]
+
     FLAGS.load_state = True
     ut.configure_folders(FLAGS, self.get_meta())
 
@@ -529,5 +535,7 @@ if __name__ == '__main__':
     layers = list(map(int, args['h'].split('/')))
     ut.print_info('layers %s' % str(layers), color=36)
     model.set_layer_sizes(layers)
+  if 'divider' in args:
+    FLAGS.drag_divider = float(args['divider'])
 
   model.train(epochs)

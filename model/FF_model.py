@@ -17,7 +17,7 @@ import prettytensor as pt
 import prettytensor.bookkeeper as bookkeeper
 from prettytensor.tutorial import data_utils
 
-tf.app.flags.DEFINE_string('input_path', '../data/tmp/romb8/img/', 'input folder')
+tf.app.flags.DEFINE_string('input_path', '../data/tmp/romb8.2.2/img/', 'input folder')
 tf.app.flags.DEFINE_integer('batch_size', 50, 'Batch size')
 tf.app.flags.DEFINE_float('learning_rate', 0.0001, 'Create visualization of ')
 tf.app.flags.DEFINE_integer('stride', 2, 'Data is permuted in series of INT consecutive inputs')
@@ -31,9 +31,9 @@ tf.app.flags.DEFINE_boolean('visualize', True, 'Create visualization of decoded 
 tf.app.flags.DEFINE_integer('vis_substeps', 10, 'Use INT intermediate images')
 
 tf.app.flags.DEFINE_boolean('load_state', True, 'Create visualization of ')
-tf.app.flags.DEFINE_integer('save_every', 20, 'Save model state every INT epochs')
+tf.app.flags.DEFINE_integer('save_every', 50, 'Save model state every INT epochs')
 tf.app.flags.DEFINE_integer('acc_every', 25, 'Calculate accuracy every INT epochs')
-tf.app.flags.DEFINE_integer('save_encodings_every', 10, 'Save model state every INT epochs')
+tf.app.flags.DEFINE_integer('save_encodings_every', 20, 'Save model state every INT epochs')
 
 tf.app.flags.DEFINE_integer('sigma', 10, 'Image blur maximum effect')
 tf.app.flags.DEFINE_integer('sigma_step', 200, 'Decrease image blur every X epochs')

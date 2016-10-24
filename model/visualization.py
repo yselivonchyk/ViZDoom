@@ -128,7 +128,7 @@ def visualize_encoding(encodings, folder=None, meta={}, original=None, reconstru
     assert len(original) == len(reconstruction)
     fig = plt.figure()
 
-    print('reco max:', np.max(reconstruction))
+    # print('reco max:', np.max(reconstruction))
     column_picture, height = stitch_images(original, reconstruction)
     if encodings.shape[1] <= 3:
       picture = reshape_images(column_picture, height, proportion=1)

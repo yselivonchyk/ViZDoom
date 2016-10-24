@@ -318,6 +318,10 @@ def print_list(list):
   print('\n'.join(map(str, list)))
 
 
+def print_float_list(list, format='%.4f'):
+  return ' '.join(map(lambda x: format%x, list))
+
+
 def timeit(method):
     def timed(*args, **kw):
         ts = time.time()
