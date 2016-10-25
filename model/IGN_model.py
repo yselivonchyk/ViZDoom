@@ -80,9 +80,9 @@ def _declamp_grad(vae_grad, reco_grad, filter):
   # print('vae, reco', np.abs(vae_grad).mean(), np.abs((reco_grad*filter)).mean())
   res = vae_grad/FLAGS.drag_divider + reco_grad*filter
   # res = vae_grad + reco_grad*filter
-  # print('\nvae: %s\nrec: %s\nres %s' % (ut.print_float_list(vae_grad[1]),
-  #                                       ut.print_float_list(reco_grad[1]),
-  #                                       ut.print_float_list(res[0])))
+  print('\nvae: %s\nrec: %s\nres %s' % (ut.print_float_list(vae_grad[1]),
+                                        ut.print_float_list(reco_grad[1]),
+                                        ut.print_float_list(res[0])))
   return res
 
 
@@ -98,7 +98,7 @@ def _get_stats_template():
   }
 
 
-class DoomModel:
+class IGN_model:
   model_id = 'ign'
   decoder_scope = 'dec'
   encoder_scope = 'enc'
@@ -508,7 +508,7 @@ if __name__ == '__main__':
   # per = np.random.permutation(set)[:10]
   # print(set[per], per, 4)
 
-  model = DoomModel()
+  model = IGN_model()
   args = dict([arg.split('=', maxsplit=1) for arg in sys.argv[1:]])
   if len(args) == 0:
     global DEV

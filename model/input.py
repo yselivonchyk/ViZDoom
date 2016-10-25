@@ -101,7 +101,7 @@ def get_action_data(folder):
   #     )
   #   )
   # print([print(x[0]) for x in action_data[0:10]])
-  res =  [x[3][:2] for x in action_data]
+  res = [x[3][:2] for x in action_data]
   return np.abs(np.asarray(res))
 
 
