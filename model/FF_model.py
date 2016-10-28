@@ -33,7 +33,8 @@ tf.app.flags.DEFINE_integer('vis_substeps', 10, 'Use INT intermediate images')
 tf.app.flags.DEFINE_boolean('load_state', True, 'Create visualization of ')
 tf.app.flags.DEFINE_integer('save_every', 200, 'Save model state every INT epochs')
 tf.app.flags.DEFINE_integer('acc_every', 50, 'Calculate accuracy every INT epochs')
-tf.app.flags.DEFINE_integer('save_encodings_every', 5, 'Save model state every INT epochs')
+tf.app.flags.DEFINE_integer('save_encodings_every', 50, 'Save model state every INT epochs')
+tf.app.flags.DEFINE_integer('visualize_every', 500, 'Visualize operation every')
 
 tf.app.flags.DEFINE_integer('sigma', 10, 'Image blur maximum effect')
 tf.app.flags.DEFINE_integer('sigma_step', 200, 'Decrease image blur every X epochs')
@@ -265,10 +266,11 @@ class DoomModel:
 
   def save_encodings(self, encodings, visual_set, reconstruction, accuracy):
     epochs_past = self.get_past_epochs()
-    meta = {'suf': 'encodings', 'e': int(epochs_past), 'er': '%5d' % int(accuracy)}
+    meta = {'suf': 'encodings', 'e':  '%5d' % int(epochs_past), 'er': int(accuracy)}
     projection_file = ut.to_file_name(meta, FLAGS.save_path, 'txt')
     np.savetxt(projection_file, encodings)
-    vis.visualize_encoding(encodings, FLAGS.save_path, meta, visual_set, reconstruction)
+    if epochs_past % FLAGS.visualize_every == 0:
+      vis.visualize_encoding(encodings, FLAGS.save_path, meta, visual_set, reconstruction)
 
   def checkpoint(self, runner, sess):
     self.save_meta()
@@ -351,7 +353,7 @@ class DoomModel:
           encoding = encoding[:len(original_set)]
           visual_reconstruction = self.process_in_batches(
             sess, (self._input_placeholder, self._output_placeholder), self._visualize_op, visual_set)
-          self.save_encodings(encoding, visual_set, visual_reconstruction, accuracy_by_epoch[-1])
+          self.save_encodings(encoding, visual_set, visual_reconstruction, accuracy_by_epoch[-1]*100000)
 
         self.print_epoch_info(accuracy, current_epoch, epoch_reconstruction, epochs_to_train)
 
@@ -400,7 +402,14 @@ if __name__ == '__main__':
     ut.print_info('layers %s' % str(layers), color=36)
     model.set_layer_sizes(layers)
 
-  model.train(epochs)
+  base = '../data/tmp_grey/romb8.2.2/img/'
+  all_data = [x[0] for x in os.walk( '../data/tmp_grey/') if 'img' in x[0]]
+  print(all_data)
+
+  for _, path in enumerate(all_data):
+    print(path)
+    FLAGS.input_path = path
+    model.train(epochs)
 
 
   # epochs = 5
