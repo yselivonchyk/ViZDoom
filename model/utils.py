@@ -9,6 +9,8 @@ import pickle
 from scipy import misc
 import re
 import tools.checkpoint_utils as ch_utils
+import subprocess as sp
+
 
 
 IMAGE_FOLDER = './img/'
@@ -37,23 +39,34 @@ def _get_time_offset():
   return res
 
 
-def print_time(*args):
+def print_time(*args, same_line=False):
   string = ''
   for a in args:
     string += str(a) + ' '
   time = datetime.datetime.now().time().strftime('%H:%M:%S')
   offset = _get_time_offset()
   res = '%s%s %s' % (str(time), offset, str(string))
-  print_color(res)
+  print_color(res, same_line=same_line)
 
 
-def print_info(string, color=32):
-  print_color('\t' + str(string), color=color)
+def print_info(string, color=32, same_line=False):
+  print_color('\t' + str(string), color=color, same_line=same_line)
 
 
-def print_color(string, color=33):
+same_line_prev = None
+def print_color(string, color=33, same_line=False):
+  global same_line_prev
   res = '%c[1;%dm%s%c[0m' % (27, color, str(string), 27)
-  print(res)
+  if same_line:
+    print('\r                                                    ' +
+          '                                                      ', end=' ')
+    res = '\r' + res
+    print(res, end=' ')
+  else:
+    if same_line_prev:
+      print('\n')
+    print(res)
+  same_line_prev = same_line
 
 
 def mnist_select_n_classes(train_images, train_labels, num_classes, min=None, scale=1.0):
@@ -334,8 +347,52 @@ def timeit(method):
     return timed
 
 
+ACCEPTABLE_EXISTING_LOAD = 1
+
+
+def mask_busy_gpus(leave_unmasked=1):
+  try:
+    # get info about gpus
+    # ['GPU 3: GeForce GTX TITAN X (UUID: GPU-3cdcb1a2-c79a-b183-7790-a80ebdeb6bff)']
+    gpu_info = _output_to_list(sp.check_output("nvidia-smi -L".split()))
+    num_gpu = len(gpu_info)
+    available_gpus = []
+    for i in range(num_gpu):
+      command = "nvidia-smi stats -i %d -d gpuUtil -c 1" % i
+      gpuutil_info = _output_to_list(sp.check_output(command.split()))
+      # extract load information from
+      # '2, gpuUtil , 1477485062841829, 0'
+      gpuutil_load = max([_extract_util_info(x) for x in gpuutil_info])
+      if gpuutil_load <= ACCEPTABLE_EXISTING_LOAD:
+        available_gpus.append(i)
+
+    if len(available_gpus) < leave_unmasked:
+      print('Found only %d available GPUs in the system' % len(available_gpus))
+      exit(0)
+    # update CUDA variable
+    gpus = available_gpus[:leave_unmasked]
+    setting = ','.join(map(str, gpus))
+    os.environ["CUDA_VISIBLE_DEVICES"] = setting
+    print('Left next %d GPU(s) unmasked: [%s]' % (leave_unmasked, setting))
+  except FileNotFoundError as e:
+    print('"nvidia-smi" is not installed. GPUs are not masked')
+  except sp.CalledProcessError as e:
+    print("Ping stdout output:\n", e.output)
+
+
+def _output_to_list(output):
+  return output.decode('ascii').split('\n')[:-1]
+
+
+def _extract_util_info(gpuUtil_string):
+  return int(gpuUtil_string.split(', ')[-1])
+
+
 if __name__ == '__main__':
   data = []
   for i in range(10):
       data.append((str(i), np.random.rand(1000)))
   plot_epoch_progress({'f': 'test'}, data, True)
+
+
+mask_busy_gpus()

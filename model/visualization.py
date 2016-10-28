@@ -73,8 +73,8 @@ def manual_pca(data):
   """remove meaningless dimensions"""
   std = data[0:300].std(axis=0)
 
-  # order = np.argsort(std)[::-1]
-  order = np.arange(0, data.shape[1]).astype(np.int32)
+  order = np.argsort(std)[::-1]
+  # order = np.arange(0, data.shape[1]).astype(np.int32)
   std = std[order]
   # filter components by STD but take at least 3
 
@@ -130,12 +130,12 @@ def visualize_encoding(encodings, folder=None, meta={}, original=None, reconstru
 
     # print('reco max:', np.max(reconstruction))
     column_picture, height = stitch_images(original, reconstruction)
-    if encodings.shape[1] <= 3:
-      picture = reshape_images(column_picture, height, proportion=1)
-      plt.subplot(122).imshow(picture)
-    else:
-      picture = reshape_images(column_picture, height, proportion=3)
-      plt.subplot(155).imshow(picture)
+    subplot, proportion = (122, 1) if encodings.shape[1] <= 3 else (155, 3)
+    picture = reshape_images(column_picture, height, proportion=proportion)
+    if picture.shape[-1] == 1:
+      picture = picture.squeeze()
+    plt.subplot(subplot).imshow(picture)
+
     visualize_encodings(encodings, file_name=file_path, fig=fig, grid=(3, 5), skip_every=5)
   else:
     visualize_encodings(encodings, file_name=file_path)
@@ -288,6 +288,7 @@ def duplicate_array(array, repeats=None, total_length=None):
   assert repeats is not None or total_length is not None
 
   if repeats is None:
+    # print(total_length/len(array))
     repeats = int(np.ceil(total_length/len(array)))
   res = array.copy()
   for i in range(repeats - 1):

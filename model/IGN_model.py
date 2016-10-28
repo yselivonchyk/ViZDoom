@@ -80,9 +80,9 @@ def _declamp_grad(vae_grad, reco_grad, filter):
   # print('vae, reco', np.abs(vae_grad).mean(), np.abs((reco_grad*filter)).mean())
   res = vae_grad/FLAGS.drag_divider + reco_grad*filter
   # res = vae_grad + reco_grad*filter
-  print('\nvae: %s\nrec: %s\nres %s' % (ut.print_float_list(vae_grad[1]),
-                                        ut.print_float_list(reco_grad[1]),
-                                        ut.print_float_list(res[0])))
+  #print('\nvae: %s\nrec: %s\nres %s' % (ut.print_float_list(vae_grad[1]),
+  #                                      ut.print_float_list(reco_grad[1]),
+  #                                      ut.print_float_list(res[0])))
   return res
 
 
@@ -533,5 +533,8 @@ if __name__ == '__main__':
     model.set_layer_sizes(layers)
   if 'divider' in args:
     FLAGS.drag_divider = float(args['divider'])
+  if 'lr' in args:
+    FLAGS.learning_rate = float(args['lr'])
+
 
   model.train(epochs)
