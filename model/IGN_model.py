@@ -14,52 +14,12 @@ import tools.checkpoint_utils as ch_utils
 import activation_functions as act
 import visualization as vis
 import prettytensor as pt
-import prettytensor.bookkeeper as bookkeeper
-from tensorflow.python.ops import gradients
-from prettytensor.tutorial import data_utils
+import Model as m
 
-
-tf.app.flags.DEFINE_string('input_path', '../data/tmp/romb8.2.2/img/', 'input folder')
-tf.app.flags.DEFINE_integer('batch_size', 25, 'Batch size')
-tf.app.flags.DEFINE_float('learning_rate', 0.0001, 'Create visualization of ')
-
-tf.app.flags.DEFINE_string('suffix', 'run', 'Suffix to use to distinguish models by purpose')
-
-tf.app.flags.DEFINE_string('save_path', './tmp/checkpoint', 'Where to save the model checkpoints.')
-tf.app.flags.DEFINE_integer('save_every', 25, 'Save model state every INT epochs')
-tf.app.flags.DEFINE_boolean('load_state', True, 'Load state if possible ')
-tf.app.flags.DEFINE_string('logdir', '', 'where to save logs.')
-
-tf.app.flags.DEFINE_boolean('visualize', True, 'Create visualization of decoded images')
-tf.app.flags.DEFINE_integer('vis_substeps', 10, 'Use INT intermediate images')
-
-tf.app.flags.DEFINE_integer('save_encodings_every', 10, 'Save model state every INT epochs')
-
-tf.app.flags.DEFINE_float('drag_divider', 5.0, 'Decrease dragging gradient this many times')
-tf.app.flags.DEFINE_integer('sigma', 10, 'Image blur maximum effect')
-tf.app.flags.DEFINE_integer('sigma_step', 200, 'Decrease image blur every X epochs')
-
-
-tf.app.flags.DEFINE_string('load_from_checkpoint', None, 'where to save logs.')
-
+tf.app.flags.DEFINE_float('gradient_proportion', 5.0, 'Proportion of gradietn mixture RECO/DRAG')
 FLAGS = tf.app.flags.FLAGS
 
 DEV = False
-
-def is_stopping_point(current_epoch, epochs_to_train, stop_every=None, stop_x_times=None,
-                      stop_on_last=True):
-  if stop_on_last and current_epoch + 1 == epochs_to_train:
-    return True
-  if stop_x_times is not None:
-    return current_epoch % np.ceil(epochs_to_train / float(FLAGS.vis_substeps)) == 0
-  if stop_every is not None:
-    return (current_epoch + 1) % stop_every == 0
-
-
-def get_variable(name):
-  assert FLAGS.load_from_checkpoint
-  var = ch_utils.load_variable(tf.train.latest_checkpoint(FLAGS.load_from_checkpoint), name)
-  return var
 
 
 def _clamp(encoding, filter):
@@ -78,7 +38,7 @@ def _clamp(encoding, filter):
 
 def _declamp_grad(vae_grad, reco_grad, filter):
   # print('vae, reco', np.abs(vae_grad).mean(), np.abs((reco_grad*filter)).mean())
-  res = vae_grad/FLAGS.drag_divider + reco_grad*filter
+  res = vae_grad/FLAGS.gradient_proportion + reco_grad*filter
   # res = vae_grad + reco_grad*filter
   #print('\nvae: %s\nrec: %s\nres %s' % (ut.print_float_list(vae_grad[1]),
   #                                      ut.print_float_list(reco_grad[1]),
@@ -86,20 +46,8 @@ def _declamp_grad(vae_grad, reco_grad, filter):
   return res
 
 
-def _get_stats_template():
-  return {
-    'batch': [],
-    'input': [],
-    'encoding': [],
-    'clamped_enc': [],
-    'reconstruction': [],
-    'total_loss': 0,
-    'declamped_drad': [],
-  }
-
-
-class IGN_model:
-  model_id = 'ign'
+class IGN_model(m.Model):
+  model_id = 'ignb'
   decoder_scope = 'dec'
   encoder_scope = 'enc'
 
@@ -146,22 +94,8 @@ class IGN_model:
     if FLAGS.load_from_checkpoint:
       self.load_meta(FLAGS.load_from_checkpoint)
 
-  # MISC
-
   def get_layer_info(self):
     return [self.layer_encoder, self.layer_narrow, self.layer_decoder]
-
-  def process_in_batches(self, session, placeholders, op, set, batch_size=None):
-    batch_size = batch_size if batch_size else FLAGS.batch_size
-    batch_count = int(len(set) / batch_size)
-    # if batch_count*batch_size != len(set):
-    #   ut.print_info('not all examples are going to be processed: %d/%d' % (
-    #     batch_count*batch_size, len(set)))
-    feed = zip(xrange(batch_count), pt.train.feed_numpy(batch_size, set, set))
-    result_batches = [session.run([op], dict(zip(placeholders, data)))[0] for _, data in feed]
-    return np.vstack(result_batches)
-
-  # META
 
   def get_meta(self, meta=None):
     meta = meta if meta else {}
@@ -174,7 +108,7 @@ class IGN_model:
     meta['h'] = self.get_layer_info()
     meta['opt'] = self._optimizer
     meta['inp'] = inp.get_input_name(FLAGS.input_path)
-    meta['div'] = '%.1f' % FLAGS.drag_divider
+    meta['div'] = '%.1f' % FLAGS.gradient_proportion
     return meta
 
   def save_meta(self):
@@ -193,7 +127,7 @@ class IGN_model:
     FLAGS.batch_size = meta['bs']
     FLAGS.input_path = meta['input_path']
     FLAGS.learning_rate = meta['lr']
-    FLAGS.drag_divider = float(meta['div'])
+    FLAGS.gradient_proportion = float(meta['div'])
     self._weight_init = meta['init']
     self._optimizer = tf.train.AdadeltaOptimizer \
       if 'Adam' in meta['opt'] \
@@ -262,51 +196,12 @@ class IGN_model:
 
     self._clamped_grad, = tf.gradients(self._decoder_loss, [self._clamped_variable])
 
-
-  # DECODER
-
-  def build_standalone_decoder(self):
-    assert FLAGS.load_from_checkpoint
-    tf.reset_default_graph()
-    w_decoder = get_variable('dec/fully_connected_2/weights')
-    b_decoder = get_variable('dec/fully_connected_2/bias')
-    w_output = get_variable('dec/fully_connected_3/weights')
-    b_output = get_variable('dec/fully_connected_3/bias')
-    image_shape = inp.get_image_shape(FLAGS.input_path)
-    self._encoding = tf.placeholder(tf.float32, (1, self.layer_narrow))
-    with pt.defaults_scope(activation_fn=self._activation.func):
-      raw_decoding_op = (
-        pt.wrap(self._encoding)
-          .fully_connected(self.layer_decoder, init=w_decoder, bias_init=b_decoder)
-          .fully_connected(image_shape[0] * image_shape[1] * image_shape[2],
-                           init=w_output, bias_init=b_output)
-          .reshape((1, image_shape[0], image_shape[1], image_shape[2])))
-      self._decode = raw_decoding_op.apply(tf.mul, 255).apply(tf.cast, tf.uint8)
-      # self._decode_op = tf.cast(tf.mul(raw_decoding_op, tf.constant(255.)), tf.uint8)
-
-  def decode(self, data):
-    assert data.shape[1] == self.layer_narrow
-
-    self.build_standalone_decoder()
-    with tf.Session() as sess:
-      sess.run(tf.initialize_all_variables())
-
-      results = self.process_in_batches(
-        sess,
-        (self._encoding,),
-        self._decode,
-        data,
-        batch_size=1)
-      return results
-
-  # TRAIN
+  # DATA
 
   def fetch_datasets(self, activation_func_bounds):
     original_data, filters = inp.get_images(FLAGS.input_path)
-    print(filters)
-
     original_data, filters = self.bloody_hack_filterbatches(original_data, filters)
-    print(original_data.shape, filters.shape)
+    ut.print_info('shapes. data, filters: %s' % str((original_data.shape, filters.shape)))
 
     original_data = inp.rescale_ds(original_data, activation_func_bounds.min, activation_func_bounds.max)
     # original_data, labels = original_data[:120], labels[:120]
@@ -316,9 +211,8 @@ class IGN_model:
     if DEV:
       original_data = original_data[:300]
 
-    global epoch_size, test_size
-    epoch_size = math.ceil(len(original_data) / FLAGS.batch_size)
-    test_size = math.ceil(len(original_data) / FLAGS.batch_size)
+    self.epoch_size = math.ceil(len(original_data) / FLAGS.batch_size)
+    self.test_size = math.ceil(len(original_data) / FLAGS.batch_size)
     return original_data, filters
 
   def bloody_hack_filterbatches(self, original_data, filters):
@@ -339,16 +233,37 @@ class IGN_model:
     filters = np.asarray([x for i, x in enumerate(filters) if survivers[i] > 0])
     return original_data, filters
 
+  _blurred_dataset, _last_blur_sigma = None, 0
+
+  def _get_blurred_dataset(self):
+    epochs_past = self.get_past_epochs()
+    if FLAGS.blur_sigma != 0:
+      current_sigma = max(0, FLAGS.blur_sigma - int(epochs_past / FLAGS.blur_sigma_decrease))
+      if current_sigma != self._last_blur_sigma:
+        self._blurred_dataset = inp.apply_gaussian(self._dataset, sigma=current_sigma/10.0)
+        self._last_blur_sigma = current_sigma
+    return self._blurred_dataset if self._blurred_dataset is not None else self._dataset
+
+  def _get_epoch_dataset(self):
+    ds, filters = self._get_blurred_dataset(), self._filters
+    # permute
+    (train_set, filters), permutation = inp.permute_data_in_series((ds, filters), FLAGS.batch_size, allow_shift=False)
+    # construct feed
+    feed = pt.train.feed_numpy(FLAGS.batch_size, train_set, filters)
+    return feed, permutation
+
   def set_layer_sizes(self, h):
     self.layer_encoder = h[0]
     self.layer_narrow = h[1]
     self.layer_decoder = h[2]
 
   def get_past_epochs(self):
-    return int(bookkeeper.global_step().eval() / epoch_size)
+    return int(self._current_step.eval() / epoch_size)
 
   def get_checkpoint_path(self):
     return os.path.join(FLAGS.save_path, '9999.ckpt')
+
+  # TRAIN
 
   def train(self, epochs_to_train=5):
     meta = self.get_meta()
@@ -368,19 +283,15 @@ class IGN_model:
         self._saver.restore(sess, self.get_checkpoint_path())
         ut.print_info('Restored requested. Previous epoch: %d' % self.get_past_epochs(), color=31)
 
-      # TRAIN
+      # MAIN LOOP
       for current_epoch in xrange(epochs_to_train):
-        (train_set, filters), permutation = inp.permute_data_in_series((self._dataset,
-                                                                        self._filters),
-                                                                       FLAGS.batch_size,
-                                                                       allow_shift=False)
 
-        feed = pt.train.feed_numpy(FLAGS.batch_size, train_set, filters)
+        feed, permutation = self._get_epoch_dataset()
         for _, batch in enumerate(feed):
           filter = batch[1][0]
           assert batch[1][0,0] == batch[1][-1,0]
-          encoding, = sess.run([self._encode], feed_dict={self._input: batch[0]})  # 1.1 encode forward
-          clamped_enc, vae_grad = _clamp(encoding, filter)               # 1.2 # clamp
+          encoding, = sess.run([self._encode], feed_dict={self._input: batch[0]})   # 1.1 encode forward
+          clamped_enc, vae_grad = _clamp(encoding, filter)                          # 1.2 # clamp
 
           sess.run(self._assign_clamped, feed_dict={self._clamped:clamped_enc})
           reconstruction, loss, clamped_gradient, _ = sess.run(          # 2.1 decode forward+backward
@@ -425,17 +336,19 @@ class IGN_model:
     self._epoch_stats['total_loss'] += loss
 
   def _register_epoch(self, epoch, total_epochs, permutation, sess):
-    if is_stopping_point(epoch, total_epochs, FLAGS.save_every):
+    if m.is_stopping_point(epoch, total_epochs, FLAGS.save_every):
       self._saver.save(sess, self.get_checkpoint_path())
 
     accuracy = 100000 * np.sqrt(self._epoch_stats['total_loss'] / np.prod(self._batch_shape) / epoch_size)
     self._epoch_stats['permutation_reverse'] = np.argsort(permutation)
     visual_set = self._get_visual_set()
 
-    if FLAGS.visualize and is_stopping_point(epoch, total_epochs, stop_x_times=FLAGS.vis_substeps):
+    if FLAGS.visualize and m.is_stopping_point(epoch, total_epochs, stop_x_times=FLAGS.vis_substeps):
       self._stats['epoch_reconstructions'].append(visual_set)
-    if is_stopping_point(epoch, total_epochs, FLAGS.save_encodings_every):
-      self.save_encodings(visual_set, accuracy)
+    if m.is_stopping_point(epoch, total_epochs, FLAGS.save_encodings_every):
+      self.save_encodings(accuracy)
+    if m.is_stopping_point(epoch, total_epochs, FLAGS.save_visualization_every):
+      self.save_visualization(visual_set, accuracy)
     self._stats['epoch_accuracy'].append(accuracy)
 
     self.print_epoch_info(accuracy, epoch, self._epoch_stats['reconstruction'][0], total_epochs)
@@ -460,21 +373,25 @@ class IGN_model:
     ut.print_time('Best Quality: %f for %s' % (best_acc, ut.to_file_name(meta)))
     return meta
 
-  def save_encodings(self, reconstruction, accuracy):
+  def save_encodings(self, accuracy):
     encodings = np.vstack(self._epoch_stats['encoding'][:self._stats['ds_length']])
     encodings = encodings[self._epoch_stats['permutation_reverse']]
-    visual_set = self._dataset[self._stats['visual_set']]
     epochs_past = self.get_past_epochs()
     meta = {'suf': 'encodings', 'e': int(epochs_past), 'er': int(accuracy)}
     projection_file = ut.to_file_name(meta, FLAGS.save_path, 'txt')
     np.savetxt(projection_file, encodings)
+    return encodings, meta
+
+  def save_visualization(self, reconstruction, accuracy):
+    encodings, meta = self.save_encodings(accuracy)
+    visual_set = self._get_blurred_dataset()[self._stats['visual_set']]
     vis.visualize_encoding(encodings, FLAGS.save_path, meta, visual_set, reconstruction)
 
   def print_epoch_info(self, accuracy, current_epoch, reconstruction, epochs):
     epochs_past = self.get_past_epochs() - current_epoch
     reconstruction_info = ''
     accuracy_info = '' if accuracy is None else '| accuracy %d' % int(accuracy)
-    if FLAGS.visualize and is_stopping_point(current_epoch, epochs,
+    if FLAGS.visualize and m.is_stopping_point(current_epoch, epochs,
                                           stop_every=FLAGS.vis_substeps):
       reconstruction_info = '| (min, max): (%3d %3d)' % (
       np.min(reconstruction),
@@ -486,21 +403,12 @@ class IGN_model:
       epoch_past_info,
       accuracy_info,
       reconstruction_info)
-    ut.print_time(info_string)
-
-
-def parse_params():
-  params = {}
-  for i, param in enumerate(sys.argv):
-    if '-' in param:
-      params[param[1:]] = sys.argv[i+1]
-  print(params)
-  return params
+    ut.print_time(info_string, same_line=True)
 
 
 if __name__ == '__main__':
   # FLAGS.load_from_checkpoint = './tmp/doom_bs__act|sigmoid__bs|20__h|500|5|500__init|na__inp|cbd4__lr|0.0004__opt|AO'
-  epochs = 500
+  epochs = 300
   import sys
 
   # x = 100

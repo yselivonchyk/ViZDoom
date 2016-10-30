@@ -86,7 +86,7 @@ def get_action_data(folder):
   folder = folder.replace('/dep', '')
   file = os.path.join(folder, 'action.txt')
   if not os.path.exists(file):
-    return []
+    return None
   action_data = json.load(open(file, 'r'))[:]
   # print(action_data)
   res = []
@@ -176,18 +176,18 @@ def permute_data(arrays, random_state=None):
   return [a[order] for a in arrays]
 
 
+@ut.timeit
 def apply_gaussian(images, sigma=5):
   if sigma == 0:
     return images
 
-  ut.print_time('start')
-  output = [
-    [filters.gaussian_filter(channel, 2) for channel in image]
-    for image in images
-  ]
-  output = np.asarray(output)
-  ut.print_time('finish', images[0,0,0,0], output[0,0,0,0])
-  return output
+  # ut.print_time('start')
+  res = images.copy()
+  for i, image in enumerate(res):
+    for channel in range(image.shape[-1]):
+      image[:, :, channel] = filters.gaussian_filter(image[:, :, channel], sigma)
+  ut.print_time('finish', images[2,10,10,0], res[2,10,10,0])
+  return res
 
 
 def permute_array_in_series(array, series_length, allow_shift=True):
@@ -228,6 +228,8 @@ def pad_set(set, batch_size):
   if length % batch_size == 0:
     return set
   padding_len = batch_size - length % batch_size
+  if padding_len != 0:
+    ut.print_info('Non-zero padding: %d' % padding_len, color=31)
   # print('pad set', set.shape, select_random(padding_len, set=set).shape)
   return np.concatenate((set, select_random(padding_len, set=set)))
 

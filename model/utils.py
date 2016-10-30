@@ -8,6 +8,7 @@ import tensorflow as tf
 import pickle
 from scipy import misc
 import re
+import sys
 import tools.checkpoint_utils as ch_utils
 import subprocess as sp
 
@@ -386,6 +387,16 @@ def _output_to_list(output):
 
 def _extract_util_info(gpuUtil_string):
   return int(gpuUtil_string.split(', ')[-1])
+
+
+def parse_params():
+  params = {}
+  for i, param in enumerate(sys.argv):
+    if '-' in param:
+      params[param[1:]] = sys.argv[i+1]
+  print(params)
+  return params
+
 
 
 if __name__ == '__main__':
