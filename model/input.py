@@ -86,7 +86,7 @@ def get_action_data(folder):
   folder = folder.replace('/dep', '')
   file = os.path.join(folder, 'action.txt')
   if not os.path.exists(file):
-    return None
+    return np.asarray([])
   action_data = json.load(open(file, 'r'))[:]
   # print(action_data)
   res = []
@@ -229,7 +229,8 @@ def pad_set(set, batch_size):
     return set
   padding_len = batch_size - length % batch_size
   if padding_len != 0:
-    ut.print_info('Non-zero padding: %d' % padding_len, color=31)
+    pass
+    # ut.print_info('Non-zero padding: %d' % padding_len, color=31)
   # print('pad set', set.shape, select_random(padding_len, set=set).shape)
   return np.concatenate((set, select_random(padding_len, set=set)))
 

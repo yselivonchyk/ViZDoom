@@ -61,11 +61,10 @@ def print_color(string, color=33, same_line=False):
   if same_line:
     print('\r                                                    ' +
           '                                                      ', end=' ')
-    res = '\r' + res
-    print(res, end=' ')
+    print('\r' + res, end=' ')
   else:
-    if same_line_prev:
-      print('\n')
+    # if same_line_prev:
+    #   print('\n')
     print(res)
   same_line_prev = same_line
 

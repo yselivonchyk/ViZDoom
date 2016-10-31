@@ -18,7 +18,7 @@ import prettytensor as pt
 
 
 tf.app.flags.DEFINE_string('suffix', 'run', 'Suffix to use to distinguish models by purpose')
-tf.app.flags.DEFINE_string('input_path', '../data/tmp/romb8.2.2/img/', 'input folder')
+tf.app.flags.DEFINE_string('input_path', '../data/tmp_grey/romb8.2.2/img/', 'input folder')
 tf.app.flags.DEFINE_string('save_path', './tmp/checkpoint', 'Where to save the model checkpoints.')
 tf.app.flags.DEFINE_string('logdir', '', 'where to save logs.')
 tf.app.flags.DEFINE_string('load_from_checkpoint', None, 'Load model state from particular checkpoint')
@@ -32,8 +32,8 @@ tf.app.flags.DEFINE_float('learning_rate', 0.0001, 'Create visualization of ')
 tf.app.flags.DEFINE_boolean('visualize', True, 'Create visualization of decoded images along training')
 tf.app.flags.DEFINE_integer('vis_substeps', 10, 'Use INT intermediate images')
 
-tf.app.flags.DEFINE_integer('save_encodings_every', 5, 'Save model state every INT epochs')
-tf.app.flags.DEFINE_integer('save_visualization_every', 5, 'Save model state every INT epochs')
+tf.app.flags.DEFINE_integer('save_encodings_every', 25, 'Save model state every INT epochs')
+tf.app.flags.DEFINE_integer('save_visualization_every', 50, 'Save model state every INT epochs')
 
 tf.app.flags.DEFINE_integer('blur_sigma', 0, 'Image blur maximum effect')
 tf.app.flags.DEFINE_integer('blur_sigma_decrease', 1000, 'Decrease image blur every X epochs')
