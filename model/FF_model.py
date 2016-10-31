@@ -11,6 +11,7 @@ import visualization as vis
 import prettytensor as pt
 import Model
 
+tf.app.flags.DEFINE_integer('stride', 2, 'Data is permuted in series of INT consecutive inputs')
 FLAGS = tf.app.flags.FLAGS
 
 DEV = False
@@ -56,6 +57,9 @@ class FF_model(Model.Model):
   _current_step = None
   _visualize_op = None
 
+  _writer, _saver = None, None
+  _dataset, _filters = None, None
+
   def __init__(self,
                weight_init=None,
                activation=act.sigmoid,
@@ -79,6 +83,7 @@ class FF_model(Model.Model):
     meta['bs'] = FLAGS.batch_size
     meta['h'] = self.get_layer_info()
     meta['opt'] = self._optimizer
+    meta['seq'] = FLAGS.stride
     meta['inp'] = inp.get_input_name(FLAGS.input_path)
     return meta
 
@@ -106,6 +111,7 @@ class FF_model(Model.Model):
     self.layer_encoder = meta['h'][0]
     self.layer_narrow = meta['h'][1]
     self.layer_decoder = meta['h'][2]
+    FLAGS.stride = int(meta['str']) if 'str' in meta else 2
 
     FLAGS.load_state = True
     ut.configure_folders(FLAGS, self.get_meta())
@@ -138,14 +144,13 @@ class FF_model(Model.Model):
   def _build_decoder(self, weight_init=tf.truncated_normal):
     self._encoding = tf.placeholder(tf.float32, (FLAGS.batch_size, self.layer_narrow), name='encoding')
     self._reconstruction = tf.placeholder(tf.float32, self._batch_shape)
-
     self._decode = (self._encode
         .fully_connected(self.layer_decoder, name='decoder_1')
         .fully_connected(np.prod(self._image_shape), init=weight_init, name='output')
         .reshape(self._batch_shape))
 
-    self._reco_loss = self._decode.l2_regression(pt.wrap(self._reconstruction))
-    self._optimizer = self._optimizer_constructor(learning_rate=FLAGS.learning_rate / FLAGS.batch_size)
+    self._reco_loss = self._build_reco_loss(self._reconstruction)
+    self._optimizer = self._optimizer_constructor(learning_rate=FLAGS.learning_rate)
     self._train = self._optimizer.minimize(self._reco_loss)
 
   # DATA
@@ -155,8 +160,6 @@ class FF_model(Model.Model):
     ut.print_info('shapes. data, filters: %s' % str((original_data.shape, filters.shape)))
 
     original_data = inp.rescale_ds(original_data, activation_func_bounds.min, activation_func_bounds.max)
-    # original_data, labels = original_data[:120], labels[:120]
-    # print(original_data.shape, labels.shape)
     self._image_shape = inp.get_image_shape(FLAGS.input_path)
 
     if DEV:
@@ -165,6 +168,16 @@ class FF_model(Model.Model):
     self.epoch_size = math.ceil(len(original_data) / FLAGS.batch_size)
     self.test_size = math.ceil(len(original_data) / FLAGS.batch_size)
     return original_data, filters
+
+  def _get_epoch_dataset(self):
+    ds, filters = self._get_blurred_dataset(), self._filters
+    ds = inp.pad_set(ds, FLAGS.batch_size)
+    filters = inp.pad_set(ds, FLAGS.batch_size)
+    # permute
+    (train_set, filters), permutation = inp.permute_data_in_series((ds, filters), FLAGS.stride)
+    # construct feed
+    feed = pt.train.feed_numpy(FLAGS.batch_size, train_set, filters)
+    return feed, permutation
 
   def set_layer_sizes(self, h):
     self.layer_encoder = h[0]
@@ -194,7 +207,6 @@ class FF_model(Model.Model):
 
       # MAIN LOOP
       for current_epoch in xrange(epochs_to_train):
-
         feed, permutation = self._get_epoch_dataset()
         for _, batch in enumerate(feed):
 
@@ -236,9 +248,7 @@ if __name__ == '__main__':
     ut.print_info('layers %s' % str(layers), color=36)
     model.set_layer_sizes(layers)
 
-  base = '../data/tmp_grey/romb8.2.2/img/'
-  all_data = [x[0] for x in os.walk( '../data/tmp_grey/') if 'img' in x[0]]
-  print(all_data)
+
 
   # for _, path in enumerate(all_data):
   #   print(path)

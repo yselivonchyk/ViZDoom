@@ -23,17 +23,17 @@ tf.app.flags.DEFINE_string('save_path', './tmp/checkpoint', 'Where to save the m
 tf.app.flags.DEFINE_string('logdir', '', 'where to save logs.')
 tf.app.flags.DEFINE_string('load_from_checkpoint', None, 'Load model state from particular checkpoint')
 
-tf.app.flags.DEFINE_integer('save_every', 25, 'Save model state every INT epochs')
+tf.app.flags.DEFINE_integer('save_every', 200, 'Save model state every INT epochs')
 tf.app.flags.DEFINE_boolean('load_state', True, 'Load state if possible ')
 
-tf.app.flags.DEFINE_integer('batch_size', 25, 'Batch size')
+tf.app.flags.DEFINE_integer('batch_size', 50, 'Batch size')
 tf.app.flags.DEFINE_float('learning_rate', 0.0001, 'Create visualization of ')
 
 tf.app.flags.DEFINE_boolean('visualize', True, 'Create visualization of decoded images along training')
 tf.app.flags.DEFINE_integer('vis_substeps', 10, 'Use INT intermediate images')
 
-tf.app.flags.DEFINE_integer('save_encodings_every', 25, 'Save model state every INT epochs')
-tf.app.flags.DEFINE_integer('save_visualization_every', 50, 'Save model state every INT epochs')
+tf.app.flags.DEFINE_integer('save_encodings_every', 20, 'Save model state every INT epochs')
+tf.app.flags.DEFINE_integer('save_visualization_every', 40, 'Save model state every INT epochs')
 
 tf.app.flags.DEFINE_integer('blur_sigma', 0, 'Image blur maximum effect')
 tf.app.flags.DEFINE_integer('blur_sigma_decrease', 1000, 'Decrease image blur every X epochs')
@@ -42,6 +42,7 @@ tf.app.flags.DEFINE_integer('blur_sigma_decrease', 1000, 'Decrease image blur ev
 FLAGS = tf.app.flags.FLAGS
 
 DEV = False
+
 
 def is_stopping_point(current_epoch, epochs_to_train, stop_every=None, stop_x_times=None,
                       stop_on_last=True):
@@ -57,6 +58,12 @@ def get_variable(name):
   assert FLAGS.load_from_checkpoint
   var = ch_utils.load_variable(tf.train.latest_checkpoint(FLAGS.load_from_checkpoint), name)
   return var
+
+
+def get_every_dataset():
+  all_data = [x[0] for x in os.walk( '../data/tmp_grey/') if 'img' in x[0]]
+  print(all_data)
+  return all_data
 
 
 class Model:
@@ -76,6 +83,10 @@ class Model:
 
   def _build_decoder(self, weight_init=tf.truncated_normal):
     pass
+
+  def _build_reco_loss(self, output_placeholder):
+    return self._decode.flatten().l2_regression(pt.wrap(output_placeholder).flatten())
+
 
   # DATA
 
@@ -184,7 +195,7 @@ class Model:
     encodings = np.vstack(self._epoch_stats['encoding'][:self._stats['ds_length']])
     encodings = encodings[self._epoch_stats['permutation_reverse']]
     epochs_past = self.get_past_epochs()
-    meta = {'suf': 'encodings', 'e': int(epochs_past), 'er': int(accuracy)}
+    meta = {'suf': 'encodings', 'e': '%5d' % int(epochs_past), 'er': int(accuracy)}
     projection_file = ut.to_file_name(meta, FLAGS.save_path, 'txt')
     np.savetxt(projection_file, encodings)
     return encodings, meta
@@ -211,5 +222,3 @@ class Model:
       accuracy_info,
       reconstruction_info)
     ut.print_time(info_string, same_line=True)
-
-
