@@ -70,6 +70,9 @@ class Model:
   model_id = 'base'
   epoch_size, test_size = None, None
 
+  _writer, _saver = None, None
+  _dataset, _filters = None, None
+
   def get_layer_info(self):
     return [self.layer_encoder, self.layer_narrow, self.layer_decoder]
 
@@ -87,6 +90,44 @@ class Model:
   def _build_reco_loss(self, output_placeholder):
     return self._decode.flatten().l2_regression(pt.wrap(output_placeholder).flatten())
 
+  def train(self, epochs_to_train=5):
+    pass
+
+  # META
+
+  def get_meta(self, meta=None):
+    meta = meta if meta else {}
+
+    meta['postf'] = self.model_id
+    meta['a'] = 's'
+    meta['lr'] = FLAGS.learning_rate
+    meta['init'] = self._weight_init
+    meta['bs'] = FLAGS.batch_size
+    meta['h'] = self.get_layer_info()
+    meta['opt'] = self._optimizer
+    meta['inp'] = inp.get_input_name(FLAGS.input_path)
+    return meta
+
+  def save_meta(self, meta=None):
+    if meta is None:
+      meta = self.get_meta()
+
+    ut.configure_folders(FLAGS, meta)
+    meta['a'] = 's'
+    meta['opt'] = str(meta['opt']).split('.')[-1][:-2]
+    meta['input_path'] = FLAGS.input_path
+    path = os.path.join(FLAGS.save_path, 'meta.txt')
+    json.dump(meta, open(path,'w'))
+
+  def load_meta(self, save_path):
+    path = os.path.join(save_path, 'meta.txt')
+    meta = json.load(open(path, 'r'))
+    FLAGS.save_path = save_path
+    FLAGS.batch_size = meta['bs']
+    FLAGS.input_path = meta['input_path']
+    FLAGS.learning_rate = meta['lr']
+    FLAGS.load_state = True
+    return meta
 
   # DATA
 
@@ -101,27 +142,13 @@ class Model:
         self._last_blur_sigma = current_sigma
     return self._blurred_dataset if self._blurred_dataset is not None else self._dataset
 
-  def _get_epoch_dataset(self):
-    ds, filters = self._get_blurred_dataset(), self._filters
-    ds = inp.pad_set(ds, FLAGS.batch_size)
-    filters = inp.pad_set(ds, FLAGS.batch_size)
-    # permute
-    (train_set, filters), permutation = inp.permute_data_in_series((ds, filters), FLAGS.batch_size, allow_shift=False)
-    # construct feed
-    feed = pt.train.feed_numpy(FLAGS.batch_size, train_set, filters)
-    return feed, permutation
-
+  # MISC
 
   def get_past_epochs(self):
     return int(self._current_step.eval() / self.epoch_size)
 
   def get_checkpoint_path(self):
     return os.path.join(FLAGS.save_path, '9999.ckpt')
-
-  # TRAIN
-
-  def train(self, epochs_to_train=5):
-    pass
 
   # OUTPUTS
 

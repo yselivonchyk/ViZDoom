@@ -57,9 +57,6 @@ class FF_model(Model.Model):
   _current_step = None
   _visualize_op = None
 
-  _writer, _saver = None, None
-  _dataset, _filters = None, None
-
   def __init__(self,
                weight_init=None,
                activation=act.sigmoid,
@@ -74,35 +71,12 @@ class FF_model(Model.Model):
     return [self.layer_encoder, self.layer_narrow, self.layer_decoder]
 
   def get_meta(self, meta=None):
-    meta = meta if meta else {}
-
-    meta['postf'] = self.model_id
-    meta['a'] = 's'
-    meta['lr'] = FLAGS.learning_rate
-    meta['init'] = self._weight_init
-    meta['bs'] = FLAGS.batch_size
-    meta['h'] = self.get_layer_info()
-    meta['opt'] = self._optimizer
+    meta = super(FF_model, self).get_meta(meta=meta)
     meta['seq'] = FLAGS.stride
-    meta['inp'] = inp.get_input_name(FLAGS.input_path)
     return meta
 
-  def save_meta(self):
-    meta = self.get_meta()
-    ut.configure_folders(FLAGS, meta)
-    meta['a'] = 's'
-    meta['opt'] = str(meta['opt']).split('.')[-1][:-2]
-    meta['input_path'] = FLAGS.input_path
-    path = os.path.join(FLAGS.save_path, 'meta.txt')
-    json.dump(meta, open(path,'w'))
-
   def load_meta(self, save_path):
-    path = os.path.join(save_path, 'meta.txt')
-    meta = json.load(open(path, 'r'))
-    FLAGS.save_path = save_path
-    FLAGS.batch_size = meta['bs']
-    FLAGS.input_path = meta['input_path']
-    FLAGS.learning_rate = meta['lr']
+    meta = super(FF_model, self).load_meta(save_path)
     self._weight_init = meta['init']
     self._optimizer = tf.train.AdadeltaOptimizer \
       if 'Adam' in meta['opt'] \
@@ -112,10 +86,8 @@ class FF_model(Model.Model):
     self.layer_narrow = meta['h'][1]
     self.layer_decoder = meta['h'][2]
     FLAGS.stride = int(meta['str']) if 'str' in meta else 2
-
-    FLAGS.load_state = True
     ut.configure_folders(FLAGS, self.get_meta())
-
+    return meta
 
   # MODEL
 

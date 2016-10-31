@@ -81,6 +81,7 @@ def _is_combination_of_image_depth(folder):
 
 
 def get_action_data(folder):
+  folder = folder.replace('/tmp_grey', '')
   folder = folder.replace('/tmp', '')
   folder = folder.replace('/img', '')
   folder = folder.replace('/dep', '')
