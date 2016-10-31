@@ -16,7 +16,6 @@ import visualization as vis
 import prettytensor as pt
 
 
-
 tf.app.flags.DEFINE_string('suffix', 'run', 'Suffix to use to distinguish models by purpose')
 tf.app.flags.DEFINE_string('input_path', '../data/tmp_grey/romb8.2.2/img/', 'input folder')
 tf.app.flags.DEFINE_string('save_path', './tmp/checkpoint', 'Where to save the model checkpoints.')
@@ -38,6 +37,7 @@ tf.app.flags.DEFINE_integer('save_visualization_every', 40, 'Save model state ev
 tf.app.flags.DEFINE_integer('blur_sigma', 0, 'Image blur maximum effect')
 tf.app.flags.DEFINE_integer('blur_sigma_decrease', 1000, 'Decrease image blur every X epochs')
 
+tf.app.flags.DEFINE_boolean('noise', True, 'apply noise to avoid discretisation')
 
 FLAGS = tf.app.flags.FLAGS
 

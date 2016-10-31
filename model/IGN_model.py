@@ -272,11 +272,6 @@ if __name__ == '__main__':
   epochs = 300
   import sys
 
-  # x = 100
-  # set = np.arange(100)
-  # per = np.random.permutation(set)[:10]
-  # print(set[per], per, 4)
-
   model = IGN_model()
   args = dict([arg.split('=', maxsplit=1) for arg in sys.argv[1:]])
   if len(args) == 0:
