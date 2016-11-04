@@ -31,8 +31,8 @@ tf.app.flags.DEFINE_float('learning_rate', 0.0001, 'Create visualization of ')
 tf.app.flags.DEFINE_boolean('visualize', True, 'Create visualization of decoded images along training')
 tf.app.flags.DEFINE_integer('vis_substeps', 10, 'Use INT intermediate images')
 
-tf.app.flags.DEFINE_integer('save_encodings_every', 20, 'Save model state every INT epochs')
-tf.app.flags.DEFINE_integer('save_visualization_every', 40, 'Save model state every INT epochs')
+tf.app.flags.DEFINE_integer('save_encodings_every', 300, 'Save model state every INT epochs')
+tf.app.flags.DEFINE_integer('save_visualization_every', 300, 'Save model state every INT epochs')
 
 tf.app.flags.DEFINE_integer('blur_sigma', 0, 'Image blur maximum effect')
 tf.app.flags.DEFINE_integer('blur_sigma_decrease', 1000, 'Decrease image blur every X epochs')
@@ -148,7 +148,7 @@ class Model:
     return int(self._current_step.eval() / self.epoch_size)
 
   def get_checkpoint_path(self):
-    return os.path.join(FLAGS.save_path, '9999.ckpt')
+    return os.path.join(FLAGS.save_path, '-9999.chpt')
 
   # OUTPUTS
 
@@ -222,7 +222,7 @@ class Model:
     encodings = np.vstack(self._epoch_stats['encoding'][:self._stats['ds_length']])
     encodings = encodings[self._epoch_stats['permutation_reverse']]
     epochs_past = self.get_past_epochs()
-    meta = {'suf': 'encodings', 'e': '%5d' % int(epochs_past), 'er': int(accuracy)}
+    meta = {'suf': 'encodings', 'e': '%06d' % int(epochs_past), 'er': int(accuracy)}
     projection_file = ut.to_file_name(meta, FLAGS.save_path, 'txt')
     np.savetxt(projection_file, encodings)
     return encodings, meta

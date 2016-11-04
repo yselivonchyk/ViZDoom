@@ -147,6 +147,7 @@ class FF_model(Model.Model):
     filters = inp.pad_set(ds, FLAGS.batch_size)
     # permute
     (train_set, filters), permutation = inp.permute_data_in_series((ds, filters), FLAGS.stride)
+    # (train_set, filters), permutation = (ds, filters), np.arange(len(ds))
     # construct feed
     feed = pt.train.feed_numpy(FLAGS.batch_size, train_set, filters)
     return feed, permutation
@@ -195,6 +196,10 @@ class FF_model(Model.Model):
 
 if __name__ == '__main__':
   # FLAGS.load_from_checkpoint = './tmp/doom_bs__act|sigmoid__bs|20__h|500|5|500__init|na__inp|cbd4__lr|0.0004__opt|AO'
+  FLAGS.input_path = '../data/tmp_grey/romb8.2.2/img/'
+  FLAGS.blur_sigma = 30
+  FLAGS.blur_sigma_decrease = 1000
+
   epochs = 100
   import sys
 
@@ -206,8 +211,8 @@ if __name__ == '__main__':
     ut.print_info('epochs: %d' % epochs, color=36)
   if 'stride' in args:
     FLAGS.stride = int(args['stride'])
-  if 'sigma' in args:
-    FLAGS.sigma = int(args['sigma'])
+  if 'blur' in args:
+    FLAGS.blur_sigma = int(args['blur'])
   if 'suffix' in args:
     FLAGS.suffix = args['suffix']
   if 'input' in args:
@@ -220,8 +225,7 @@ if __name__ == '__main__':
     ut.print_info('layers %s' % str(layers), color=36)
     model.set_layer_sizes(layers)
 
-
-
+  all_data = [x[0] for x in os.walk( '../data/tmp_grey/') if 'img' in x[0]]
   # for _, path in enumerate(all_data):
   #   print(path)
   #   FLAGS.input_path = path

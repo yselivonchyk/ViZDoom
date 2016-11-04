@@ -106,8 +106,8 @@ def get_action_data(folder):
   return np.abs(np.asarray(res))
 
 
-def get_images(folder, at_most=None):
-  action_data = get_action_data(folder)
+def get_images(folder, at_most=None, get_action_data=False):
+  action_data = get_action_data(folder) if get_action_data else np.asarray([])
   if _is_combination_of_image_depth(folder):
     depth, d_labels = _get_images(os.path.join(folder, 'dep'))
     image, i_labels = _get_images(os.path.join(folder, 'img'))
@@ -160,6 +160,7 @@ def _get_image_file_list(folder):
 
 
 def get_input_name(input_folder):
+  print(input_folder.split('/'))
   return input_folder.split('/')[-3]
 
 
@@ -187,7 +188,7 @@ def apply_gaussian(images, sigma=5):
   for i, image in enumerate(res):
     for channel in range(image.shape[-1]):
       image[:, :, channel] = filters.gaussian_filter(image[:, :, channel], sigma)
-  ut.print_time('finish', images[2,10,10,0], res[2,10,10,0])
+  ut.print_time('finish s:%d' % sigma, images[2,10,10,0], res[2,10,10,0])
   return res
 
 

@@ -55,6 +55,8 @@ def print_info(string, color=32, same_line=False):
 
 
 same_line_prev = None
+
+
 def print_color(string, color=33, same_line=False):
   global same_line_prev
   res = '%c[1;%dm%s%c[0m' % (27, color, str(string), 27)
@@ -346,6 +348,8 @@ def timeit(method):
         return result
     return timed
 
+
+# GPU masking
 
 ACCEPTABLE_EXISTING_LOAD = 1
 
