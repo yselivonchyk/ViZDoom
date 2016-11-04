@@ -230,7 +230,7 @@ class Model:
   def save_visualization(self, reconstruction, accuracy):
     encodings, meta = self.save_encodings(accuracy)
     visual_set = self._get_blurred_dataset()[self._stats['visual_set']]
-    vis.visualize_encoding(encodings, FLAGS.save_path, meta, visual_set, reconstruction)
+    vis.visualize_encoding_cross(encodings, FLAGS.save_path, meta, visual_set, reconstruction)
 
   def print_epoch_info(self, accuracy, current_epoch, reconstruction, epochs):
     epochs_past = self.get_past_epochs() - current_epoch

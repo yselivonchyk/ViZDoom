@@ -111,6 +111,7 @@ def images_to_uint8(func):
   return func_wrapper
 
 
+
 @images_to_uint8
 @ut.timeit
 def visualize_encoding(encodings, folder=None, meta={}, original=None, reconstruction=None):
@@ -139,6 +140,100 @@ def visualize_encoding(encodings, folder=None, meta={}, original=None, reconstru
     visualize_encodings(encodings, file_name=file_path, fig=fig, grid=(3, 5), skip_every=5)
   else:
     visualize_encodings(encodings, file_name=file_path)
+
+
+# cross section start
+
+
+@images_to_uint8
+@ut.timeit
+def visualize_encoding_cross(encodings, folder=None, meta={}, original=None, reconstruction=None, interactive=False):
+  if np.max(original) < 10:
+    print('should not happen')
+    original = (original * 255).astype(np.uint8)
+  file_path = None
+
+  if folder:
+    meta['postfix'] = 'cross'
+    file_path = ut.to_file_name(meta, folder, 'jpg')
+  encodings = manual_pca(encodings)
+
+  fig = None
+  if original is not None:
+    assert len(original) == len(reconstruction)
+    subplot, proportion = visualize_cross_section_with_reco(encodings, fig=fig)
+    column_picture, height = stitch_images(original, reconstruction)
+    picture = reshape_images(column_picture, height, proportion=proportion)
+    if picture.shape[-1] == 1:
+      picture = picture.squeeze()
+    subplot.imshow(picture)
+  else:
+    visualize_cross_section(encodings, fig=fig)
+  if not interactive:
+    save_fig(file_path, fig)
+  else:
+    plt.show()
+
+
+def _get_figure(fig=None):
+  if fig is not None:
+    return fig
+  fig = plt.figure()
+  fig.set_size_inches(fig.get_size_inches()[0] * 2, fig.get_size_inches()[1] * 2)
+  return fig
+
+import matplotlib.ticker as ticker
+
+def _plot_single_cross_section(data, select, subplot):
+  data = data[:, select]
+  subplot.scatter(data[:, 0], data[:, 1], s=15, alpha=1.0,
+                  c=build_radial_colors(len(data)),
+                  cmap=plt.cm.Spectral)
+  data = np.vstack((data, np.asarray([data[0, :]])))
+  subplot.plot(data[:, 0], data[:, 1], alpha=0.4)
+  subplot.set_xlabel('feature %d' % select[0])
+  subplot.set_ylabel('feature %d' % select[1])
+  subplot.set_xlim([-0.1, 1.1])
+  subplot.set_ylim([-0.1, 1.1])
+  subplot.xaxis.set_ticks([0, 1])
+  subplot.xaxis.set_major_formatter(ticker.FormatStrFormatter('%1.0f'))
+  subplot.yaxis.set_ticks([0, 1])
+  subplot.yaxis.set_major_formatter(ticker.FormatStrFormatter('%1.0f'))
+
+
+def visualize_cross_section(embeddings, fig=None):
+  fig = _get_figure(fig)
+  features = embeddings.shape[-1]
+  size = features - 1
+  for i in range(features):
+    for j in range(i+1, features):
+      pos = i*size + j
+      # print('i, j', i, j, 's, p', size, pos)
+
+      # # x, y, n = i, j, y*features+x+1
+      # print(size, size, pos)
+      subplot = plt.subplot(size, size, pos)
+      _plot_single_cross_section(embeddings, [i, j], subplot)
+  return size
+
+
+def visualize_cross_section_with_reco(embeddings, fig=None):
+  fig = _get_figure(fig)
+  features = embeddings.shape[-1]
+  size = features - 1
+  for i in range(features):
+    for j in range(i+1, features):
+      pos = i*(size+1) + j
+
+      # # x, y, n = i, j, y*features+x+1
+      # print(size, size+1, pos)
+      subplot = plt.subplot(size, size+1, pos)
+      _plot_single_cross_section(embeddings, [i, j], subplot)
+  reco_subplot = plt.subplot(1, size+1, size+1)
+  return reco_subplot, size
+
+
+# cross section end
 
 
 def visualize_encodings(encodings, file_name=None,
@@ -218,7 +313,6 @@ def save_fig(file_name, fig=None):
                 frameon=None)
     if fig is not None:
       plt.close(fig)
-
 
 
 def _random_split(sequence, length, original):
@@ -460,16 +554,25 @@ def reshape_images(column_picture, height, proportion=1):
 
 
 if __name__ == '__main__':
-  visualize_available_data(root='../../VD_backup/All vizdoom data/', reembed=True, with_mds=True)
-  # print_data_only(np.random.rand(10, 3), None)
-  exit(0)
-  # visualize_available_data()
-  # rerun_embeddings()
-  dec = 123654
-  hex = "%06x" % dec
-  data = np.random.rand(100, 8)
-  data += np.min(data)
-  data /= np.max(data)
-  print(np.min(data), np.max(data))
-  visualize_data_same(data, (2, 2), [1, 2, 3, 4])
+  # visualize_available_data(root='../../VD_backup/All vizdoom data/', reembed=True, with_mds=True)
+  # # print_data_only(np.random.rand(10, 3), None)
+  # exit(0)
+  # # visualize_available_data()
+  # # rerun_embeddings()
+  # dec = 123654
+  # hex = "%06x" % dec
+  # data = np.random.rand(100, 8)
+  # data += np.min(data)
+  # data /= np.max(data)
+  # print(np.min(data), np.max(data))
+  # visualize_data_same(data, (2, 2), [1, 2, 3, 4])
+  # plt.show()
+
+  path = '../../encodings__e|500__z_ac|96.5751.txt'
+  x = np.loadtxt(path)
+  # x = np.random.rand(100, 5)
+  x = manual_pca(x)
+  x = x[:360]
+  visualize_cross_section_with_reco(x, None)
+  plt.tight_layout()
   plt.show()
