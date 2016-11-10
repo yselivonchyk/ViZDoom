@@ -32,9 +32,8 @@ class FF_model(Model.Model):
   decoder_scope = 'dec'
   encoder_scope = 'enc'
 
-  layer_narrow = 6
-  layer_encoder = 40
-  layer_decoder = 40
+  layers = [40, 6, 40]
+  layer_narrow = 1
 
   _image_shape = None
   _batch_shape = None
@@ -68,7 +67,7 @@ class FF_model(Model.Model):
       self.load_meta(FLAGS.load_from_checkpoint)
 
   def get_layer_info(self):
-    return [self.layer_encoder, self.layer_narrow, self.layer_decoder]
+    return self.layers
 
   def get_meta(self, meta=None):
     meta = super(FF_model, self).get_meta(meta=meta)
@@ -82,9 +81,7 @@ class FF_model(Model.Model):
       if 'Adam' in meta['opt'] \
       else tf.train.AdadeltaOptimizer
     self._activation = act.sigmoid
-    self.layer_encoder = meta['h'][0]
-    self.layer_narrow = meta['h'][1]
-    self.layer_decoder = meta['h'][2]
+    self.set_layer_sizes(meta['h'])
     FLAGS.stride = int(meta['str']) if 'str' in meta else 2
     ut.configure_folders(FLAGS, self.get_meta())
     return meta
@@ -109,15 +106,23 @@ class FF_model(Model.Model):
     self._input = tf.placeholder(tf.float32, self._batch_shape, name='input')
 
     self._encode = (pt.wrap(self._input)
-                    .flatten()
-                    .fully_connected(self.layer_encoder, name='enc_hidden')
-                    .fully_connected(self.layer_narrow, name='narrow'))
+                    .flatten())
+
+    for i in range(self.layer_narrow + 1):
+      size, desc = self.layers[i], 'enc_hidden_%d' % i
+      self._encode = self._encode.fully_connected(size, name=desc)
 
   def _build_decoder(self, weight_init=tf.truncated_normal):
-    self._encoding = tf.placeholder(tf.float32, (FLAGS.batch_size, self.layer_narrow), name='encoding')
+    narrow, layers = self.layers[self.layer_narrow], self.layers[self.layer_narrow+1:]
+
+    self._encoding = tf.placeholder(tf.float32, (FLAGS.batch_size, narrow), name='encoding')
     self._reconstruction = tf.placeholder(tf.float32, self._batch_shape)
-    self._decode = (self._encode
-        .fully_connected(self.layer_decoder, name='decoder_1')
+
+    for i, size in enumerate(layers):
+      start = self._decode if i != 0 else self._encode
+      self._decode = start.fully_connected(size, name='enc_hidden_%d' % i)
+
+    self._decode = (self._decode
         .fully_connected(np.prod(self._image_shape), init=weight_init, name='output')
         .reshape(self._batch_shape))
 
@@ -153,9 +158,13 @@ class FF_model(Model.Model):
     return feed, permutation
 
   def set_layer_sizes(self, h):
-    self.layer_encoder = h[0]
-    self.layer_narrow = h[1]
-    self.layer_decoder = h[2]
+    if isinstance(h, str):
+      ut.print_info('new layer sizes: %s' % h)
+      h = h.replace('/', '|')
+      h = list(map(int, h.split('|')))
+    self.layers = h
+    self.layer_narrow = np.argmin(h)
+    print(self.layers, self.layer_narrow)
 
   # TRAIN
 
@@ -196,9 +205,7 @@ class FF_model(Model.Model):
 
 if __name__ == '__main__':
   # FLAGS.load_from_checkpoint = './tmp/doom_bs__act|sigmoid__bs|20__h|500|5|500__init|na__inp|cbd4__lr|0.0004__opt|AO'
-  FLAGS.input_path = '../data/tmp_grey/romb8.2.2/img/'
-  FLAGS.blur_sigma = 30
-  FLAGS.blur_sigma_decrease = 1000
+  FLAGS.input_path = '../data/tmp/romb8.2.2/img/'
 
   epochs = 100
   import sys
@@ -206,6 +213,7 @@ if __name__ == '__main__':
   model = FF_model()
   args = dict([arg.split('=', maxsplit=1) for arg in sys.argv[1:]])
   print(args)
+  args['input'] = 'romb8.5.6'
   if 'epochs' in args:
     epochs = int(args['epochs'])
     ut.print_info('epochs: %d' % epochs, color=36)
@@ -221,9 +229,7 @@ if __name__ == '__main__':
     FLAGS.input_path = '/'.join(parts)
     ut.print_info('input %s' % FLAGS.input_path, color=36)
   if 'h' in args:
-    layers = list(map(int, args['h'].split('/')))
-    ut.print_info('layers %s' % str(layers), color=36)
-    model.set_layer_sizes(layers)
+    model.set_layer_sizes(args['h'])
 
   all_data = [x[0] for x in os.walk( '../data/tmp_grey/') if 'img' in x[0]]
   # for _, path in enumerate(all_data):

@@ -146,7 +146,7 @@ def visualize_encoding(encodings, folder=None, meta={}, original=None, reconstru
 
 
 @images_to_uint8
-@ut.timeit
+# @ut.timeit
 def visualize_encoding_cross(encodings, folder=None, meta={}, original=None, reconstruction=None, interactive=False):
   if np.max(original) < 10:
     print('should not happen')

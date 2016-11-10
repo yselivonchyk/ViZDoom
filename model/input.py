@@ -161,7 +161,10 @@ def _get_image_file_list(folder):
 
 def get_input_name(input_folder):
   print(input_folder.split('/'))
-  return input_folder.split('/')[-3]
+  name = input_folder.split('/')[-3]
+  if 'tmp_grey' in input_folder:
+    name = 'G' + name
+  return name
 
 
 def permute_array(array, random_state=None):

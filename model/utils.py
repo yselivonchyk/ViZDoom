@@ -351,7 +351,7 @@ def timeit(method):
 
 # GPU masking
 
-ACCEPTABLE_EXISTING_LOAD = 1
+ACCEPTABLE_AVAILABLE_MEMORY = 1024
 
 
 def mask_busy_gpus(leave_unmasked=1):
@@ -360,15 +360,11 @@ def mask_busy_gpus(leave_unmasked=1):
     # ['GPU 3: GeForce GTX TITAN X (UUID: GPU-3cdcb1a2-c79a-b183-7790-a80ebdeb6bff)']
     gpu_info = _output_to_list(sp.check_output("nvidia-smi -L".split()))
     num_gpu = len(gpu_info)
-    available_gpus = []
-    for i in range(num_gpu):
-      command = "nvidia-smi stats -i %d -d gpuUtil -c 1" % i
-      gpuutil_info = _output_to_list(sp.check_output(command.split()))
-      # extract load information from
-      # '2, gpuUtil , 1477485062841829, 0'
-      gpuutil_load = max([_extract_util_info(x) for x in gpuutil_info])
-      if gpuutil_load <= ACCEPTABLE_EXISTING_LOAD:
-        available_gpus.append(i)
+
+    command = "nvidia-smi --query-gpu=memory.free --format=csv"
+    memory_free_info = _output_to_list(sp.check_output(command.split()))[1:]
+    available_gpus = [i for i, x in enumerate(memory_free_info) if int(x.split()[0]) > ACCEPTABLE_AVAILABLE_MEMORY]
+    print(available_gpus)
 
     if len(available_gpus) < leave_unmasked:
       print('Found only %d available GPUs in the system' % len(available_gpus))
@@ -399,7 +395,6 @@ def parse_params():
       params[param[1:]] = sys.argv[i+1]
   print(params)
   return params
-
 
 
 if __name__ == '__main__':

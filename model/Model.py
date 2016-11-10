@@ -34,8 +34,8 @@ tf.app.flags.DEFINE_integer('vis_substeps', 10, 'Use INT intermediate images')
 tf.app.flags.DEFINE_integer('save_encodings_every', 300, 'Save model state every INT epochs')
 tf.app.flags.DEFINE_integer('save_visualization_every', 300, 'Save model state every INT epochs')
 
-tf.app.flags.DEFINE_integer('blur_sigma', 0, 'Image blur maximum effect')
-tf.app.flags.DEFINE_integer('blur_sigma_decrease', 1000, 'Decrease image blur every X epochs')
+tf.app.flags.DEFINE_integer('blur_sigma', 25, 'Image blur maximum effect')
+tf.app.flags.DEFINE_integer('blur_sigma_decrease', 30000, 'Decrease image blur every X epochs')
 
 tf.app.flags.DEFINE_boolean('noise', True, 'apply noise to avoid discretisation')
 
@@ -134,9 +134,8 @@ class Model:
   _blurred_dataset, _last_blur_sigma = None, 0
 
   def _get_blurred_dataset(self):
-    epochs_past = self.get_past_epochs()
     if FLAGS.blur_sigma != 0:
-      current_sigma = max(0, FLAGS.blur_sigma - int(epochs_past / FLAGS.blur_sigma_decrease))
+      current_sigma = max(0, FLAGS.blur_sigma - int(self._current_step.eval() / FLAGS.blur_sigma_decrease))
       if current_sigma != self._last_blur_sigma:
         self._blurred_dataset = inp.apply_gaussian(self._dataset, sigma=current_sigma/10.0)
         self._last_blur_sigma = current_sigma
