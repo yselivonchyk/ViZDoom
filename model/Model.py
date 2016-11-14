@@ -14,6 +14,7 @@ import tools.checkpoint_utils as ch_utils
 import activation_functions as act
 import visualization as vis
 import prettytensor as pt
+import time
 
 
 tf.app.flags.DEFINE_string('suffix', 'run', 'Suffix to use to distinguish models by purpose')
@@ -22,22 +23,22 @@ tf.app.flags.DEFINE_string('save_path', './tmp/checkpoint', 'Where to save the m
 tf.app.flags.DEFINE_string('logdir', '', 'where to save logs.')
 tf.app.flags.DEFINE_string('load_from_checkpoint', None, 'Load model state from particular checkpoint')
 
-tf.app.flags.DEFINE_integer('save_every', 200, 'Save model state every INT epochs')
+tf.app.flags.DEFINE_integer('save_every', 100, 'Save model state every INT epochs')
 tf.app.flags.DEFINE_boolean('load_state', True, 'Load state if possible ')
 
 tf.app.flags.DEFINE_integer('batch_size', 50, 'Batch size')
 tf.app.flags.DEFINE_float('learning_rate', 0.0001, 'Create visualization of ')
 
+tf.app.flags.DEFINE_float('dropout', 0.0, 'Dropout probability of pre-narrow units')
+
 tf.app.flags.DEFINE_boolean('visualize', True, 'Create visualization of decoded images along training')
 tf.app.flags.DEFINE_integer('vis_substeps', 10, 'Use INT intermediate images')
 
-tf.app.flags.DEFINE_integer('save_encodings_every', 300, 'Save model state every INT epochs')
-tf.app.flags.DEFINE_integer('save_visualization_every', 300, 'Save model state every INT epochs')
+tf.app.flags.DEFINE_integer('save_encodings_every', 200, 'Save model state every INT epochs')
+tf.app.flags.DEFINE_integer('save_visualization_every', 200, 'Save model state every INT epochs')
 
-tf.app.flags.DEFINE_integer('blur_sigma', 25, 'Image blur maximum effect')
+tf.app.flags.DEFINE_integer('blur_sigma', 50, 'Image blur maximum effect')
 tf.app.flags.DEFINE_integer('blur_sigma_decrease', 30000, 'Decrease image blur every X epochs')
-
-tf.app.flags.DEFINE_boolean('noise', True, 'apply noise to avoid discretisation')
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -106,6 +107,7 @@ class Model:
     meta['h'] = self.get_layer_info()
     meta['opt'] = self._optimizer
     meta['inp'] = inp.get_input_name(FLAGS.input_path)
+    meta['do'] = FLAGS.dropout
     return meta
 
   def save_meta(self, meta=None):
@@ -127,6 +129,7 @@ class Model:
     FLAGS.input_path = meta['input_path']
     FLAGS.learning_rate = meta['lr']
     FLAGS.load_state = True
+    FLAGS.dropout = float(meta['do'])
     return meta
 
   # DATA
@@ -137,6 +140,7 @@ class Model:
     if FLAGS.blur_sigma != 0:
       current_sigma = max(0, FLAGS.blur_sigma - int(self._current_step.eval() / FLAGS.blur_sigma_decrease))
       if current_sigma != self._last_blur_sigma:
+        print('sigmas', current_sigma,  self._last_blur_sigma, current_sigma/10.0)
         self._blurred_dataset = inp.apply_gaussian(self._dataset, sigma=current_sigma/10.0)
         self._last_blur_sigma = current_sigma
     return self._blurred_dataset if self._blurred_dataset is not None else self._dataset
@@ -158,6 +162,7 @@ class Model:
       'encoding': [],
       'reconstruction': [],
       'total_loss': 0,
+      'start': time.time()
     }
 
   _epoch_stats = None
@@ -179,6 +184,7 @@ class Model:
     self._epoch_stats['reconstruction'].append(reconstruction)
     self._epoch_stats['total_loss'] += loss
 
+  # @ut.timeit
   def _register_epoch(self, epoch, total_epochs, permutation, sess):
     if is_stopping_point(epoch, total_epochs, FLAGS.save_every):
       self._saver.save(sess, self.get_checkpoint_path())
@@ -199,6 +205,7 @@ class Model:
     if epoch + 1 != total_epochs:
       self._epoch_stats = self._get_stats_template()
 
+  # @ut.timeit
   def _get_visual_set(self):
     r_permutation = self._epoch_stats['permutation_reverse']
     visual_set_indexes = r_permutation[self._stats['visual_set']]
@@ -247,4 +254,8 @@ class Model:
       epoch_past_info,
       accuracy_info,
       reconstruction_info)
-    ut.print_time(info_string, same_line=True)
+
+    time_per_image = (time.time() - self._epoch_stats['start'])/(self.epoch_size*FLAGS.batch_size)
+    time_str = ' t/img:%f' % time_per_image
+
+    ut.print_time(info_string + time_str, same_line=True)

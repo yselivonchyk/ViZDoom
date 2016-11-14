@@ -11,7 +11,7 @@ import visualization as vis
 import prettytensor as pt
 import Model
 
-tf.app.flags.DEFINE_integer('stride', 2, 'Data is permuted in series of INT consecutive inputs')
+tf.app.flags.DEFINE_integer('stride', 1, 'Data is permuted in series of INT consecutive inputs')
 FLAGS = tf.app.flags.FLAGS
 
 DEV = False
@@ -28,7 +28,7 @@ def _get_stats_template():
 
 
 class FF_model(Model.Model):
-  model_id = 'bs'
+  model_id = 'do'
   decoder_scope = 'dec'
   encoder_scope = 'enc'
 
@@ -71,7 +71,7 @@ class FF_model(Model.Model):
 
   def get_meta(self, meta=None):
     meta = super(FF_model, self).get_meta(meta=meta)
-    meta['seq'] = FLAGS.stride
+    # meta['seq'] = FLAGS.stride
     return meta
 
   def load_meta(self, save_path):
@@ -82,7 +82,7 @@ class FF_model(Model.Model):
       else tf.train.AdadeltaOptimizer
     self._activation = act.sigmoid
     self.set_layer_sizes(meta['h'])
-    FLAGS.stride = int(meta['str']) if 'str' in meta else 2
+    # FLAGS.stride = int(meta['str']) if 'str' in meta else 2
     ut.configure_folders(FLAGS, self.get_meta())
     return meta
 
@@ -111,6 +111,9 @@ class FF_model(Model.Model):
     for i in range(self.layer_narrow + 1):
       size, desc = self.layers[i], 'enc_hidden_%d' % i
       self._encode = self._encode.fully_connected(size, name=desc)
+      if i == self.layer_narrow-1:
+        print('dropout:', i, self.layers[i], 1.0-FLAGS.dropout)
+        self._encode = self._encode.dropout(1.0-FLAGS.dropout)
 
   def _build_decoder(self, weight_init=tf.truncated_normal):
     narrow, layers = self.layers[self.layer_narrow], self.layers[self.layer_narrow+1:]
@@ -131,7 +134,7 @@ class FF_model(Model.Model):
     self._train = self._optimizer.minimize(self._reco_loss)
 
   # DATA
-
+  @ut.timeit
   def fetch_datasets(self, activation_func_bounds):
     original_data, filters = inp.get_images(FLAGS.input_path)
     ut.print_info('shapes. data, filters: %s' % str((original_data.shape, filters.shape)))
@@ -146,6 +149,7 @@ class FF_model(Model.Model):
     self.test_size = math.ceil(len(original_data) / FLAGS.batch_size)
     return original_data, filters
 
+  # @ut.timeit
   def _get_epoch_dataset(self):
     ds, filters = self._get_blurred_dataset(), self._filters
     ds = inp.pad_set(ds, FLAGS.batch_size)
@@ -175,7 +179,7 @@ class FF_model(Model.Model):
     ut.configure_folders(FLAGS, meta)
 
     self._dataset, _ = self.fetch_datasets(self._activation)
-    self._filters = self._dataset
+    self._filters = np.zeros(len(self._dataset))
     self.build_model()
     self._register_training_start()
 
@@ -205,7 +209,7 @@ class FF_model(Model.Model):
 
 if __name__ == '__main__':
   # FLAGS.load_from_checkpoint = './tmp/doom_bs__act|sigmoid__bs|20__h|500|5|500__init|na__inp|cbd4__lr|0.0004__opt|AO'
-  FLAGS.input_path = '../data/tmp/romb8.2.2/img/'
+  FLAGS.input_path = '../data/tmp_grey/romb8.2.2/img/'
 
   epochs = 100
   import sys
@@ -213,7 +217,12 @@ if __name__ == '__main__':
   model = FF_model()
   args = dict([arg.split('=', maxsplit=1) for arg in sys.argv[1:]])
   print(args)
-  args['input'] = 'romb8.5.6'
+  if len(args) == 1:
+    ut.print_info('DEV mode', color=33)
+    args['input'] = 'tmp/romb8.2.2/img'
+    FLAGS.blur_sigma = 0
+    ut.print_info(args['input'],  color=33)
+
   if 'epochs' in args:
     epochs = int(args['epochs'])
     ut.print_info('epochs: %d' % epochs, color=36)
@@ -224,10 +233,14 @@ if __name__ == '__main__':
   if 'suffix' in args:
     FLAGS.suffix = args['suffix']
   if 'input' in args:
-    parts = FLAGS.input_path.split('/')
-    parts[-3] = args['input']
-    FLAGS.input_path = '/'.join(parts)
-    ut.print_info('input %s' % FLAGS.input_path, color=36)
+    if args['input'][0] != '/':
+      args['input'] = '/' + args['input']
+    if 'tmp' not in args['input']:
+      args['input'] = '/tmp' + args['input']
+
+    parts = FLAGS.input_path.split('/')[:-4]
+    FLAGS.input_path = '/'.join(parts) + args['input']
+    ut.print_info('input: %s' % FLAGS.input_path, color=36)
   if 'h' in args:
     model.set_layer_sizes(args['h'])
 

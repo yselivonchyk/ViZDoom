@@ -311,8 +311,7 @@ def save_fig(file_name, fig=None):
     plt.savefig(file_name, dpi=300, facecolor='w', edgecolor='w',
                 transparent=False, bbox_inches='tight', pad_inches=0.1,
                 frameon=None)
-    if fig is not None:
-      plt.close(fig)
+    plt.close('all')
 
 
 def _random_split(sequence, length, original):

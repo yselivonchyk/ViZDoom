@@ -6,6 +6,7 @@ from os.path import isfile, join
 import utils as ut
 import json
 import scipy.ndimage.filters as filters
+import time
 
 
 INPUT_FOLDER = '../data/circle_basic_1/img/32_32'
@@ -137,6 +138,7 @@ def _get_images(folder, at_most=None):
   labels = list(map(to_int, files))
   ut.print_info('Found %d images: %s...' % (len(labels), str(labels[1:5])))
   images, labels = np.asarray(images), np.asarray(labels, dtype=np.uint32)
+  print(images.dtype, images.shape,  images.nbytes/1000000, images.max())
   return images, labels
 
 
@@ -160,10 +162,16 @@ def _get_image_file_list(folder):
 
 
 def get_input_name(input_folder):
+  if input_folder[-1] != '/':
+    input_folder += '/'
   print(input_folder.split('/'))
-  name = input_folder.split('/')[-3]
+  name = input_folder.replace('/img', '').replace('/dep', '').split('/')[-2]
   if 'tmp_grey' in input_folder:
-    name = 'G' + name
+    name = 'g_' + name
+  if 'dep' in input_folder:
+    name = 'D' + name
+  if 'img' in input_folder:
+    name = 'I' + name
   return name
 
 
@@ -181,8 +189,8 @@ def permute_data(arrays, random_state=None):
   return [a[order] for a in arrays]
 
 
-@ut.timeit
-def apply_gaussian(images, sigma=5):
+# @ut.timeit
+def apply_gaussian(images, sigma):
   if sigma == 0:
     return images
 
@@ -191,15 +199,17 @@ def apply_gaussian(images, sigma=5):
   for i, image in enumerate(res):
     for channel in range(image.shape[-1]):
       image[:, :, channel] = filters.gaussian_filter(image[:, :, channel], sigma)
-  ut.print_time('finish s:%d' % sigma, images[2,10,10,0], res[2,10,10,0])
+  ut.print_time('finish s:%.1f' % sigma, images[2,10,10,0], res[2,10,10,0])
   return res
 
 
+# @ut.timeit
 def permute_array_in_series(array, series_length, allow_shift=True):
   res, permutation = permute_data_in_series((array,), series_length)
   return res[0], permutation
 
 
+# @ut.timeit
 def permute_data_in_series(arrays, series_length, allow_shift=True):
   shift_possibilities = len(arrays[0]) % series_length
   series_count = int(len(arrays[0]) / series_length)
