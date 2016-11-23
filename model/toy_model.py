@@ -1,61 +1,51 @@
-import tensorflow as tf
-import numpy as np
+# -*- coding: utf-8 -*-
+"""
+Simple example using LSTM recurrent neural network to classify IMDB
+sentiment dataset.
+References:
+    - Long Short Term Memory, Sepp Hochreiter & Jurgen Schmidhuber, Neural
+    Computation 9(8): 1735-1780, 1997.
+    - Andrew L. Maas, Raymond E. Daly, Peter T. Pham, Dan Huang, Andrew Y. Ng,
+    and Christopher Potts. (2011). Learning Word Vectors for Sentiment
+    Analysis. The 49th Annual Meeting of the Association for Computational
+    Linguistics (ACL 2011).
+Links:
+    - http://deeplearning.cs.cmu.edu/pdfs/Hochreiter97_lstm.pdf
+    - http://ai.stanford.edu/~amaas/data/sentiment/
+"""
 
-# x = tf.Variable(0.5)
-# y = x*x
-# opt = tf.train.AdagradOptimizer(0.1)
-# grads = opt.compute_gradients(y)
-# print(grads)
-# grad_placeholder = [(tf.placeholder("float", shape=grad[1].get_shape()), grad[1]) for grad in grads]
-# apply_placeholder_op = opt.apply_gradients(grad_placeholder)
-#
-#
-# def function1(param):
-#   return param
-#
-# def function2(param):
-#   return param
-#
-#
-# transform_grads = [(function1(grad[0]), grad[1]) for grad in grads]
-# apply_transform_op = opt.apply_gradients(transform_grads)
-#
-# sess = tf.Session()
-# sess.run(tf.initialize_all_variables())
-#
-# grad_vals = sess.run([grad[0] for grad in grads])
-#
-# feed_dict = {}
-# for i in range(len(grad_placeholder)):
-#   feed_dict[grad_placeholder[i][0]] = function2(grad_vals[i])
-#   sess.run(apply_placeholder_op, feed_dict=feed_dict)
-#   sess.run(apply_transform_op)
+from __future__ import division, print_function, absolute_import
 
+import tflearn
+from tflearn.data_utils import to_categorical, pad_sequences
+from tflearn.datasets import imdb
+from tflearn.layers.core import input_data, dropout, fully_connected
+from tflearn.layers.embedding_ops import embedding
+from tflearn.layers.recurrent import bidirectional_rnn, BasicLSTMCell
+from tflearn.layers.estimator import regression
 
+# IMDB Dataset loading
+train, test, _ = imdb.load_data(path='imdb.pkl', n_words=10000,
+                                valid_portion=0.1)
+trainX, trainY = train
+testX, testY = test
 
-#
-# @images_to_uint8
-# def test(arr, arr2=None):
-#   print(1, arr,'\n2', arr2)
-#
-#
-# arr = np.random.randn(2, 2)
-# arr2 = np.random.randn(2, 2)
-# test(arr, arr2=arr2)
-#
+# Data preprocessing
+# Sequence padding
+trainX = pad_sequences(trainX, maxlen=200, value=0.)
+testX = pad_sequences(testX, maxlen=200, value=0.)
+# Converting labels to binary vectors
+trainY = to_categorical(trainY, nb_classes=2)
+testY = to_categorical(testY, nb_classes=2)
 
-x = tf.Variable(99.0)
-const = tf.constant(5.0)
-x_ = x + tf.stop_gradient(-x) + const # ARGHH
-opt = tf.train.MomentumOptimizer(learning_rate=0.0001, momentum=0.9)
-train = opt.minimize(x_)
+# Network building
+net = input_data(shape=[None, 200])
+net = embedding(net, input_dim=20000, output_dim=128)
+net = bidirectional_rnn(net, BasicLSTMCell(128), BasicLSTMCell(128))
+net = dropout(net, 0.5)
+net = fully_connected(net, 2, activation='softmax')
+net = regression(net, optimizer='adam', loss='categorical_crossentropy')
 
-with tf.Session() as sess:
-  sess.run(tf.initialize_all_variables())
-  print(x_.eval())
-  x_original = x.eval()
-  sess.run(train)
-  grad, = tf.gradients(x_, [x])
-  print('grad', grad.eval())
-  print(x.eval())
-  print(x.eval() - x_original + const.eval())
+# Training
+model = tflearn.DNN(net, clip_gradients=0., tensorboard_verbose=2)
+model.fit(trainX, trainY, validation_set=0.1, show_metric=True, batch_size=64)

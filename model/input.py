@@ -119,8 +119,8 @@ def get_images(folder, at_most=None, get_action_data=False):
     shape[-1] += 1
     res = np.ndarray(shape, dtype=image.dtype)
     for i in range(len(depth)):
-      res[i,:,:,:3] = image[i]
-      res[i,:,:,3] = depth[i,:,:,0]
+      res[i,:,:,:image.shape[-1]] = image[i]
+      res[i,:,:,-1] = depth[i,:,:,0]
     return res, action_data
   else:
     images, i_labels = _get_images(folder, at_most)

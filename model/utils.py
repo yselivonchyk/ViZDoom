@@ -133,6 +133,27 @@ def _construct_img_shape(img):
   return int(np.sqrt(img.shape[0])), int(np.sqrt(img.shape[0])), 1
 
 
+def images_to_uint8(func):
+  def normalize(arr):
+    if type(arr) == np.ndarray and arr.dtype != np.uint8 and len(arr.shape) >= 3:
+      if np.min(arr) < 0:
+        print('image array normalization: negative values')
+      if np.max(arr) < 4:
+        arr *= 255
+      if arr.shape[-1] == 4 or arr.shape[-1] == 2:
+        old_shape = arr.shape
+        arr = arr[..., :arr.shape[-1]-1]
+      return arr.astype(np.uint8)
+    return arr
+
+  def func_wrapper(*args, **kwargs):
+    new_args = [normalize(el) for el in args]
+    new_kwargs = {k: normalize(kwargs[k]) for _, k in enumerate(kwargs)}
+    return func(*tuple(new_args), **new_kwargs)
+  return func_wrapper
+
+
+@images_to_uint8
 def reconstruct_images_epochs(epochs, original=None, save_params=None, img_shape=None):
   full_picture = None
   img_shape = img_shape if img_shape is not None else _construct_img_shape(epochs[0][0])
@@ -158,7 +179,6 @@ def reconstruct_images_epochs(epochs, original=None, save_params=None, img_shape
       full_picture = concat_images(full_picture, _reconstruct_picture_line(epoch, img_shape), axis=1)
   if original is not None:
     full_picture = concat_images(full_picture, _reconstruct_picture_line(original, img_shape), axis=1)
-
   _show_picture(full_picture)
   _save_image(save_params=save_params, image=full_picture)
 
@@ -235,10 +255,11 @@ def to_file_name(obj, folder=None, ext=None, append_timestamp=False):
     if isinstance(value, list):
       value = '|'.join(map(str, value))
 
+    truncate_threshold = 20
     value = _abbreviate_string(value)
-    if len(value) > 14:
+    if len(value) > truncate_threshold:
       print_info('truncating this: %s %s' % (key, value))
-      value = value[0:9]
+      value = value[0:20]
 
     if 'suf' in key or 'postf' in key:
       continue
@@ -349,11 +370,11 @@ def timeit(method):
     return timed
 
 
-# GPU masking
+import numpy as np
 ACCEPTABLE_AVAILABLE_MEMORY = 1024
 
 
-def mask_busy_gpus(leave_unmasked=1):
+def mask_busy_gpus(leave_unmasked=1, random=True):
   try:
     command = "nvidia-smi --query-gpu=memory.free --format=csv"
     memory_free_info = _output_to_list(sp.check_output(command.split()))[1:]
@@ -361,8 +382,13 @@ def mask_busy_gpus(leave_unmasked=1):
     available_gpus = [i for i, x in enumerate(memory_free_values) if x > ACCEPTABLE_AVAILABLE_MEMORY]
 
     if len(available_gpus) < leave_unmasked:
-      print('Found only %d available GPUs in the system' % len(available_gpus))
+      print('Found only %d usable GPUs in the system' % len(available_gpus))
       exit(0)
+
+    if random:
+      available_gpus = np.asarray(available_gpus)
+      np.random.shuffle(available_gpus)
+
     # update CUDA variable
     gpus = available_gpus[:leave_unmasked]
     setting = ','.join(map(str, gpus))
@@ -370,13 +396,20 @@ def mask_busy_gpus(leave_unmasked=1):
     print('Left next %d GPU(s) unmasked: [%s] (from %s available)'
           % (leave_unmasked, setting, str(available_gpus)))
   except FileNotFoundError as e:
-    print('"nvidia-smi" is not installed. GPUs are not masked')
+    print('"nvidia-smi" is probably not installed. GPUs are not masked')
+    print(e)
   except sp.CalledProcessError as e:
-    print("Ping stdout output:\n", e.output)
+    print("Error on GPU masking:\n", e.output)
 
 
 def _output_to_list(output):
   return output.decode('ascii').split('\n')[:-1]
+
+
+def get_gpu_free_session(memory_fraction=0.1):
+  import tensorflow as tf
+  gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=memory_fraction)
+  return tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
 
 
 def parse_params():

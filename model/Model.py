@@ -18,7 +18,7 @@ import time
 
 
 tf.app.flags.DEFINE_string('suffix', 'run', 'Suffix to use to distinguish models by purpose')
-tf.app.flags.DEFINE_string('input_path', '../data/tmp_grey/romb8.2.2/img/', 'input folder')
+tf.app.flags.DEFINE_string('input_path', '../data/tmp_grey/romb8.2.2/', 'input folder')
 tf.app.flags.DEFINE_string('save_path', './tmp/checkpoint', 'Where to save the model checkpoints.')
 tf.app.flags.DEFINE_string('logdir', '', 'where to save logs.')
 tf.app.flags.DEFINE_string('load_from_checkpoint', None, 'Load model state from particular checkpoint')

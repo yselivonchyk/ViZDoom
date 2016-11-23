@@ -111,7 +111,7 @@ class FF_model(Model.Model):
     for i in range(self.layer_narrow + 1):
       size, desc = self.layers[i], 'enc_hidden_%d' % i
       self._encode = self._encode.fully_connected(size, name=desc)
-      if i == self.layer_narrow-1:
+      if i == self.layer_narrow-1 or i == self.layer_narrow-2:
         print('dropout:', i, self.layers[i], 1.0-FLAGS.dropout)
         self._encode = self._encode.dropout(1.0-FLAGS.dropout)
 
@@ -209,9 +209,9 @@ class FF_model(Model.Model):
 
 if __name__ == '__main__':
   # FLAGS.load_from_checkpoint = './tmp/doom_bs__act|sigmoid__bs|20__h|500|5|500__init|na__inp|cbd4__lr|0.0004__opt|AO'
-  FLAGS.input_path = '../data/tmp_grey/romb8.2.2/img/'
+  FLAGS.input_path = '../data/tmp_grey/romb8.2.2/'
 
-  epochs = 100
+  epochs = 20
   import sys
 
   model = FF_model()
@@ -219,7 +219,7 @@ if __name__ == '__main__':
   print(args)
   if len(args) == 1:
     ut.print_info('DEV mode', color=33)
-    args['input'] = 'tmp/romb8.2.2/img'
+    # args['input'] = '../datatmp/romb8.2.2/img'
     FLAGS.blur_sigma = 0
     ut.print_info(args['input'],  color=33)
 
@@ -237,9 +237,8 @@ if __name__ == '__main__':
       args['input'] = '/' + args['input']
     if 'tmp' not in args['input']:
       args['input'] = '/tmp' + args['input']
-
-    parts = FLAGS.input_path.split('/')[:-4]
-    FLAGS.input_path = '/'.join(parts) + args['input']
+    args['input'] = '../data' + args['input']
+    FLAGS.input_path = args['input']
     ut.print_info('input: %s' % FLAGS.input_path, color=36)
   if 'h' in args:
     model.set_layer_sizes(args['h'])

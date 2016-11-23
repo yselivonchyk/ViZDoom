@@ -83,6 +83,7 @@ def manual_pca(data):
     ut.print_info('meaningless dimensions on visualization: %s' % str(meaningless))
 
   order = [order[i] for i, x in enumerate(std) if x > STD_THRESHOLD or i < 3]
+  order.sort()
   return data[:, order]
 
 
@@ -94,25 +95,7 @@ def _needs_hessian(manifold):
   return False
 
 
-def images_to_uint8(func):
-  def normalize(arr):
-    if type(arr) == np.ndarray and arr.dtype != np.uint8 and len(arr.shape) >= 3:
-      if np.min(arr) < 0:
-        print('image array normalization: negative values')
-      if np.max(arr) < 4:
-        arr *= 255
-      return arr.astype(np.uint8)
-    return arr
-
-  def func_wrapper(*args, **kwargs):
-    new_args = [normalize(el) for el in args]
-    new_kwargs = {k: normalize(kwargs[k]) for _, k in enumerate(kwargs)}
-    return func(*tuple(new_args), **new_kwargs)
-  return func_wrapper
-
-
-
-@images_to_uint8
+@ut.images_to_uint8
 @ut.timeit
 def visualize_encoding(encodings, folder=None, meta={}, original=None, reconstruction=None):
   if np.max(original) < 10:
@@ -145,7 +128,7 @@ def visualize_encoding(encodings, folder=None, meta={}, original=None, reconstru
 # cross section start
 
 
-@images_to_uint8
+@ut.images_to_uint8
 # @ut.timeit
 def visualize_encoding_cross(encodings, folder=None, meta={}, original=None, reconstruction=None, interactive=False):
   if np.max(original) < 10:
@@ -158,6 +141,7 @@ def visualize_encoding_cross(encodings, folder=None, meta={}, original=None, rec
     file_path = ut.to_file_name(meta, folder, 'jpg')
   encodings = manual_pca(encodings)
 
+  # print('shapes', reconstruction.shape, original.shape)
   fig = None
   if original is not None:
     assert len(original) == len(reconstruction)
@@ -166,6 +150,7 @@ def visualize_encoding_cross(encodings, folder=None, meta={}, original=None, rec
     picture = reshape_images(column_picture, height, proportion=proportion)
     if picture.shape[-1] == 1:
       picture = picture.squeeze()
+    # print(picture.shape)
     subplot.imshow(picture)
   else:
     visualize_cross_section(encodings, fig=fig)
@@ -183,6 +168,7 @@ def _get_figure(fig=None):
   return fig
 
 import matplotlib.ticker as ticker
+
 
 def _plot_single_cross_section(data, select, subplot):
   data = data[:, select]
@@ -214,6 +200,12 @@ def visualize_cross_section(embeddings, fig=None):
       # print(size, size, pos)
       subplot = plt.subplot(size, size, pos)
       _plot_single_cross_section(embeddings, [i, j], subplot)
+
+  if features >= 3:
+    embeddings = embeddings[:1000]
+    pos = size*size - size + 1
+    subplot = plt.subplot(size, size, pos)
+    _plot_single_cross_section(embeddings, [0, 1], subplot)
   return size
 
 
@@ -230,6 +222,12 @@ def visualize_cross_section_with_reco(embeddings, fig=None):
       subplot = plt.subplot(size, size+1, pos)
       _plot_single_cross_section(embeddings, [i, j], subplot)
   reco_subplot = plt.subplot(1, size+1, size+1)
+
+  if features >= 3:
+    embeddings = embeddings[:1500]
+    pos = size*size - size + 1
+    subplot = plt.subplot(size, size, pos)
+    _plot_single_cross_section(embeddings, [0, 1], subplot)
   return reco_subplot, size
 
 
