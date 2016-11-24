@@ -112,7 +112,7 @@ class FF_model(Model.Model):
       size, desc = self.layers[i], 'enc_hidden_%d' % i
       self._encode = self._encode.fully_connected(size, name=desc)
       if i == self.layer_narrow-1 or i == self.layer_narrow-2:
-        print('dropout:', i, self.layers[i], 1.0-FLAGS.dropout)
+        ut.print_info('Dropout. layer:%d, layer_size:%d, DO_value:%f' % (i, self.layers[i], 1.0-FLAGS.dropout))
         self._encode = self._encode.dropout(1.0-FLAGS.dropout)
 
   def _build_decoder(self, weight_init=tf.truncated_normal):
@@ -210,8 +210,6 @@ class FF_model(Model.Model):
 if __name__ == '__main__':
   # FLAGS.load_from_checkpoint = './tmp/doom_bs__act|sigmoid__bs|20__h|500|5|500__init|na__inp|cbd4__lr|0.0004__opt|AO'
   FLAGS.input_path = '../data/tmp_grey/romb8.2.2/'
-
-  epochs = 20
   import sys
 
   model = FF_model()
@@ -223,13 +221,6 @@ if __name__ == '__main__':
     FLAGS.blur_sigma = 0
     ut.print_info(args['input'],  color=33)
 
-  if 'epochs' in args:
-    epochs = int(args['epochs'])
-    ut.print_info('epochs: %d' % epochs, color=36)
-  if 'stride' in args:
-    FLAGS.stride = int(args['stride'])
-  if 'blur' in args:
-    FLAGS.blur_sigma = int(args['blur'])
   if 'suffix' in args:
     FLAGS.suffix = args['suffix']
   if 'input' in args:
@@ -247,4 +238,4 @@ if __name__ == '__main__':
   # for _, path in enumerate(all_data):
   #   print(path)
   #   FLAGS.input_path = path
-  model.train(epochs)
+  model.train(FLAGS.max_epochs)

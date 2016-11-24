@@ -23,6 +23,7 @@ tf.app.flags.DEFINE_string('save_path', './tmp/checkpoint', 'Where to save the m
 tf.app.flags.DEFINE_string('logdir', '', 'where to save logs.')
 tf.app.flags.DEFINE_string('load_from_checkpoint', None, 'Load model state from particular checkpoint')
 
+tf.app.flags.DEFINE_integer('max_epochs', 20, 'Train for at most this number of epochs')
 tf.app.flags.DEFINE_integer('save_every', 100, 'Save model state every INT epochs')
 tf.app.flags.DEFINE_boolean('load_state', True, 'Load state if possible ')
 
@@ -34,11 +35,10 @@ tf.app.flags.DEFINE_float('dropout', 0.0, 'Dropout probability of pre-narrow uni
 tf.app.flags.DEFINE_boolean('visualize', True, 'Create visualization of decoded images along training')
 tf.app.flags.DEFINE_integer('vis_substeps', 10, 'Use INT intermediate images')
 
-tf.app.flags.DEFINE_integer('save_encodings_every', 200, 'Save model state every INT epochs')
-tf.app.flags.DEFINE_integer('save_visualization_every', 200, 'Save model state every INT epochs')
+tf.app.flags.DEFINE_integer('save_encodings_every', 100, 'Save model state every INT epochs')
 
 tf.app.flags.DEFINE_integer('blur_sigma', 50, 'Image blur maximum effect')
-tf.app.flags.DEFINE_integer('blur_sigma_decrease', 30000, 'Decrease image blur every X epochs')
+tf.app.flags.DEFINE_integer('blur_sigma_decrease', 20000, 'Decrease image blur every X epochs')
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -197,7 +197,6 @@ class Model:
       self._stats['epoch_reconstructions'].append(visual_set)
     if is_stopping_point(epoch, total_epochs, FLAGS.save_encodings_every):
       self.save_encodings(accuracy)
-    if is_stopping_point(epoch, total_epochs, FLAGS.save_visualization_every):
       self.save_visualization(visual_set, accuracy)
     self._stats['epoch_accuracy'].append(accuracy)
 

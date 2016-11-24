@@ -138,7 +138,7 @@ def _get_images(folder, at_most=None):
   labels = list(map(to_int, files))
   ut.print_info('Found %d images: %s...' % (len(labels), str(labels[1:5])))
   images, labels = np.asarray(images), np.asarray(labels, dtype=np.uint32)
-  print(images.dtype, images.shape,  images.nbytes/1000000, images.max())
+  # print(images.dtype, images.shape,  images.nbytes/1000000, images.max())
   return images, labels
 
 

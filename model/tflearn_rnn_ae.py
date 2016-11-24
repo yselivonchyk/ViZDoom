@@ -52,9 +52,8 @@ print('output:', np.prod(image_shape))
 
 input = tflearn.input_data([None, seq_length, image_size])
 encode = tflearn.lstm(input, 128, dropout=0.8, return_seq=True)
-encode = tflearn.lstm(input, 4)
-# encode = tflearn.lstm(encode, 6)
-# decode = tflearn.lstm(encode, 128, dropout=0.8)
+encode = tflearn.lstm(encode, 4)
+decode = tflearn.fully_connected(encode, 100 * seq_length, activation='sigmoid')
 decode = tflearn.fully_connected(encode, image_size * seq_length, activation='sigmoid')
 
 net = tflearn.regression(decode, shuffle_batches=True,
@@ -66,7 +65,7 @@ model.fit(trainX, trainX.reshape((len(trainX), seq_length * image_size)),
           # validation_set=(testX, testX.reshape((len(testX), seq_length * image_size))),
           show_metric=True,
           batch_size=4,
-          n_epoch=100)
+          n_epoch=10)
 
 
 encoding_model = tflearn.DNN(encode, session=model.session)

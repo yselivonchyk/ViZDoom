@@ -172,11 +172,16 @@ import matplotlib.ticker as ticker
 
 def _plot_single_cross_section(data, select, subplot):
   data = data[:, select]
-  subplot.scatter(data[:, 0], data[:, 1], s=15, alpha=1.0,
+  # subplot.scatter(data[:, 0], data[:, 1], s=20, lw=0, edgecolors='none', alpha=1.0,
+  subplot.plot(data[:, 0], data[:, 1], color='black', lw=1, alpha=0.4)
+  subplot.plot(data[[-1, 0], 0], data[[-1, 0], 1], lw=1, alpha=0.8, color='red')
+  subplot.scatter(data[:, 0], data[:, 1], s=10, alpha=1.0, lw=0.5,
                   c=build_radial_colors(len(data)),
+                  marker=".",
                   cmap=plt.cm.Spectral)
-  data = np.vstack((data, np.asarray([data[0, :]])))
-  subplot.plot(data[:, 0], data[:, 1], alpha=0.4)
+  # data = np.vstack((data, np.asarray([data[0, :]])))
+  # subplot.plot(data[:, 0], data[:, 1], alpha=0.4)
+
   subplot.set_xlabel('feature %d' % select[0])
   subplot.set_ylabel('feature %d' % select[1])
   subplot.set_xlim([-0.1, 1.1])
@@ -203,8 +208,8 @@ def visualize_cross_section(embeddings, fig=None):
 
   if features >= 3:
     embeddings = embeddings[:1000]
-    pos = size*size - size + 1
-    subplot = plt.subplot(size, size, pos)
+    pos = (size+1)*size - size + 1
+    subplot = plt.subplot(size+1, size, pos)
     _plot_single_cross_section(embeddings, [0, 1], subplot)
   return size
 
@@ -224,7 +229,7 @@ def visualize_cross_section_with_reco(embeddings, fig=None):
   reco_subplot = plt.subplot(1, size+1, size+1)
 
   if features >= 3:
-    embeddings = embeddings[:1500]
+    embeddings = embeddings[:1540]
     pos = size*size - size + 1
     subplot = plt.subplot(size, size, pos)
     _plot_single_cross_section(embeddings, [0, 1], subplot)
