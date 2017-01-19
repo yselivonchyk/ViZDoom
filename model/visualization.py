@@ -144,6 +144,7 @@ def visualize_encoding_cross(encodings, folder=None, meta={}, original=None, rec
   # print('shapes', reconstruction.shape, original.shape)
   fig = None
   if original is not None:
+    print(len(original), len(reconstruction))
     assert len(original) == len(reconstruction)
     subplot, proportion = visualize_cross_section_with_reco(encodings, fig=fig)
     column_picture, height = stitch_images(original, reconstruction)

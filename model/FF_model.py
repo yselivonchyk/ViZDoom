@@ -10,6 +10,7 @@ import activation_functions as act
 import visualization as vis
 import prettytensor as pt
 import Model
+import time
 
 tf.app.flags.DEFINE_integer('stride', 1, 'Data is permuted in series of INT consecutive inputs')
 FLAGS = tf.app.flags.FLAGS
@@ -91,7 +92,6 @@ class FF_model(Model.Model):
   def build_model(self):
     with tf.device('/cpu:0'):
       tf.reset_default_graph()
-      self._batch_shape = inp.get_batch_shape(FLAGS.batch_size, FLAGS.input_path)
       self._current_step = tf.Variable(0, trainable=False, name='global_step')
       self._step = tf.assign(self._current_step, self._current_step + 1)
       with pt.defaults_scope(activation_fn=self._activation.func):
@@ -136,30 +136,25 @@ class FF_model(Model.Model):
   # DATA
   @ut.timeit
   def fetch_datasets(self, activation_func_bounds):
-    original_data, filters = inp.get_images(FLAGS.input_path)
-    ut.print_info('shapes. data, filters: %s' % str((original_data.shape, filters.shape)))
-
-    original_data = inp.rescale_ds(original_data, activation_func_bounds.min, activation_func_bounds.max)
-    self._image_shape = inp.get_image_shape(FLAGS.input_path)
-
+    self.dataset = inp.read_ds_zip(FLAGS.input_path)
     if DEV:
-      original_data, filters = original_data[:300], filters[:300]
+      self.dataset = self.dataset[:FLAGS.batch_size*5]
 
-    self.epoch_size = math.ceil(len(original_data) / FLAGS.batch_size)
-    self.test_size = math.ceil(len(original_data) / FLAGS.batch_size)
-    return original_data, filters
+    shape = list(self.dataset.shape)
+    self.epoch_size = int(shape[0] / FLAGS.batch_size)
+
+    self._batch_shape = shape
+    self._batch_shape[0] = FLAGS.batch_size
+    self.dataset = self.dataset[:int(len(self.dataset) / FLAGS.batch_size) * FLAGS.batch_size]
+    self.dataset = inp.rescale_ds(self.dataset, activation_func_bounds.min, activation_func_bounds.max)
+    self._image_shape = list(self.dataset.shape)[1:]
+
 
   # @ut.timeit
   def _get_epoch_dataset(self):
-    ds, filters = self._get_blurred_dataset(), self._filters
-    ds = inp.pad_set(ds, FLAGS.batch_size)
-    filters = inp.pad_set(ds, FLAGS.batch_size)
-    # permute
-    (train_set, filters), permutation = inp.permute_data_in_series((ds, filters), FLAGS.stride)
-    # (train_set, filters), permutation = (ds, filters), np.arange(len(ds))
-    # construct feed
-    feed = pt.train.feed_numpy(FLAGS.batch_size, train_set, filters)
-    return feed, permutation
+    train_set = np.random.permutation(self._get_blurred_dataset())
+    feed = pt.train.feed_numpy(FLAGS.batch_size, train_set, train_set)
+    return feed
 
   def set_layer_sizes(self, h):
     if isinstance(h, str):
@@ -175,11 +170,9 @@ class FF_model(Model.Model):
   def train(self, epochs_to_train=5):
     meta = self.get_meta()
     ut.print_time('train started: \n%s' % ut.to_file_name(meta))
-    # return meta, np.random.randn(epochs_to_train)
     ut.configure_folders(FLAGS, meta)
 
-    self._dataset, _ = self.fetch_datasets(self._activation)
-    self._filters = np.zeros(len(self._dataset))
+    self.fetch_datasets(self._activation)
     self.build_model()
     self._register_training_start()
 
@@ -193,44 +186,68 @@ class FF_model(Model.Model):
 
       # MAIN LOOP
       for current_epoch in xrange(epochs_to_train):
-        feed, permutation = self._get_epoch_dataset()
+        start = time.time()
+        feed = self._get_epoch_dataset()
         for _, batch in enumerate(feed):
 
           encoding, reconstruction, loss, _, _ = sess.run(
             [self._encode, self._decode, self._reco_loss, self._train, self._step],
             feed_dict={self._input: batch[0], self._reconstruction: batch[0]})
-
-          self._register_batch(batch, encoding, reconstruction, loss)
-        self._register_epoch(current_epoch, epochs_to_train, permutation, sess)
+          self._register_batch(loss)
+        self._register_epoch(current_epoch, epochs_to_train, time.time()-start, sess)
       self._writer = tf.train.SummaryWriter(FLAGS.logdir, sess.graph)
       meta = self._register_training()
     return meta, self._stats['epoch_accuracy']
 
+  def evaluate(self, sess, take):
+    encoded, reconstructed = None, None
+    blurred = inp.apply_gaussian(self.test_set, self._get_blur_sigma())
+    for i in range(int(len(self.test_set)/FLAGS.batch_size)):
+      batch = blurred[i*FLAGS.batch_size: (i+1)*FLAGS.batch_size]
+      encoding, reconstruction = sess.run(
+        [self._encode, self._decode],
+        feed_dict={self._input: batch})
+      encoded = self._concatenate(encoded, encoding)
+      reconstructed = self._concatenate(reconstructed, reconstruction, take=take)
+    # reconstructed = self._restore_distribution(reconstructed)
+    # blurred = self._restore_distribution(blurred[:take])
+    return encoded, reconstructed, blurred
+
+  @staticmethod
+  def _concatenate(x, y, take=None):
+    if take is not None and x is not None and len(x) >= take:
+      return x
+    if x is None:
+      res = y
+    else:
+      res = np.concatenate((x, y))
+    return res[:take] if take is not None else res
+
 
 if __name__ == '__main__':
   # FLAGS.load_from_checkpoint = './tmp/doom_bs__act|sigmoid__bs|20__h|500|5|500__init|na__inp|cbd4__lr|0.0004__opt|AO'
-  FLAGS.input_path = '../data/tmp_grey/romb8.2.2/'
   import sys
 
   model = FF_model()
   args = dict([arg.split('=', maxsplit=1) for arg in sys.argv[1:]])
   print(args)
-  if len(args) == 1:
+  if len(args) <= 1:
+    DEV = True
     ut.print_info('DEV mode', color=33)
-    # args['input'] = '../datatmp/romb8.2.2/img'
-    FLAGS.blur_sigma = 0
+    args['input'] = '/home/eugene/repo/data/tmp/romb8.3.6.tar.gz'
+    FLAGS.blur_sigma = 0.0
     ut.print_info(args['input'],  color=33)
 
   if 'suffix' in args:
     FLAGS.suffix = args['suffix']
-  if 'input' in args:
-    if args['input'][0] != '/':
-      args['input'] = '/' + args['input']
-    if 'tmp' not in args['input']:
-      args['input'] = '/tmp' + args['input']
-    args['input'] = '../data' + args['input']
-    FLAGS.input_path = args['input']
-    ut.print_info('input: %s' % FLAGS.input_path, color=36)
+  # if 'input' in args:
+  #   if args['input'][0] != '/':
+  #     args['input'] = '/' + args['input']
+  #   if 'tmp' not in args['input']:
+  #     args['input'] = '/tmp' + args['input']
+  #   args['input'] = '../data' + args['input']
+  #   FLAGS.input_path = args['input']
+  #   ut.print_info('input: %s' % FLAGS.input_path, color=36)
   if 'h' in args:
     model.set_layer_sizes(args['h'])
 

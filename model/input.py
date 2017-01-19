@@ -7,74 +7,12 @@ import utils as ut
 import json
 import scipy.ndimage.filters as filters
 import time
+from PIL import Image
+import tarfile
+import io
 
 
 INPUT_FOLDER = '../data/circle_basic_1/img/32_32'
-
-
-class Input:
-  data = []
-
-  def __init__(self, data):
-    self.data = np.asarray(data, dtype=np.float32)
-    # normalize
-    min, max = np.min(self.data), np.max(self.data)
-    self.data = (self.data - min) / max
-    self.data_length = len(data)
-
-  def shuffle(self):
-    p = np.random.permutation(self.data)
-    self.data = self.data[p]
-    self.data_index = 0
-
-  data_index = 0
-  data_length = 0
-
-  def generate_minibatch(self, batch_size):
-    reshuffle = self.data_index + batch_size >= self.data_length
-
-    length = batch_size if not reshuffle else self.data_length - self.data_index
-    batch = self.data[self.data_index:self.data_index + length]
-    self.data_index += length
-    if reshuffle:
-      self.shuffle()
-      batch = np.concatenate((batch, self.generate_minibatch(batch_size - length)))
-    return batch
-
-
-# def get_image_dimension(folder, channels=False):
-#     images = _get_image_file_list(folder)
-#     im = Image.open(images[0])
-#     return im.size
-
-
-def _embed_3_axis(img):
-  """embed 1 channel greyscale image into [w, h, ch] array"""
-  if len(img.shape) == 2:
-    res = np.ndarray((img.shape[0], img.shape[1], 1), dtype=np.float32)
-    res[:, :, 0] = img
-    return res
-  return img
-
-
-def get_image_shape(folder):
-  is_combination = _is_combination_of_image_depth(folder)
-  if is_combination:
-    folder = os.path.join(folder, 'img')
-  images = _get_image_file_list(folder)
-  image = _embed_3_axis(misc.imread(images[0]))
-  shape = list(image.shape)
-  if is_combination:
-    shape[-1] += 1
-  return shape
-
-
-def get_batch_shape(batch_size, input_folder):
-  _image_shape = get_image_shape(input_folder)
-  if len(_image_shape) > 2:
-    return batch_size, _image_shape[0], _image_shape[1], _image_shape[2]
-  else:
-    return batch_size, _image_shape[0], _image_shape[1], [1]
 
 
 def _is_combination_of_image_depth(folder):
@@ -106,40 +44,45 @@ def get_action_data(folder):
   res = [x[3][:2] for x in action_data]
   return np.abs(np.asarray(res))
 
+@ut.timeit
+def read_ds_zip(path):
+  dep, img = {}, {}
+  tar = tarfile.open(path, "r:gz")
 
-def get_images(folder, at_most=None, get_action_data=False):
-  action_data = get_action_data(folder) if get_action_data else np.asarray([])
-  if _is_combination_of_image_depth(folder):
-    depth, d_labels = _get_images(os.path.join(folder, 'dep'))
-    image, i_labels = _get_images(os.path.join(folder, 'img'))
-    assert len(depth) == len(image)
-    assert all([d_labels[i] == i_labels[i] for i in range(len(d_labels))])
+  for member in tar.getmembers():
+    if '.jpg' not in member.name or not ('/dep/' in member.name or '/img/' in member.name):
+      # print('skipped', member)
+      continue
+    collection = dep if '/dep/' in member.name else img
+    index = int(member.name.split('/')[-1][1:-4])
+    f = tar.extractfile(member)
+    if f is not None:
+      content = f.read()
+      image = Image.open(io.BytesIO(content))
+      collection[index] = np.array(image)
+  assert len(img) == len(dep)
 
-    shape = list(image.shape)
+  shape = [len(img)] + list(img[index].shape)
+  shape[-1] += 1
+
+  dataset = np.zeros(shape, np.uint8)
+  for i, k in enumerate(sorted(img)):
+    dataset[i, ..., :-1] = img[k]
+    dataset[i, ..., -1] = dep[k]
+  return dataset#, shape[1:]
+
+
+def get_shape_zip(path):
+  tar = tarfile.open(path, "r:gz")
+  for member in tar.getmembers():
+    if '.jpg' not in member.name or '/img/' not in member.name:
+      continue
+    f = tar.extractfile(member)
+    content = f.read()
+    image = Image.open(io.BytesIO(content))
+    shape = list(np.array(image).shape)
     shape[-1] += 1
-    res = np.ndarray(shape, dtype=image.dtype)
-    for i in range(len(depth)):
-      res[i,:,:,:image.shape[-1]] = image[i]
-      res[i,:,:,-1] = depth[i,:,:,0]
-    return res, action_data
-  else:
-    images, i_labels = _get_images(folder, at_most)
-    # print('/', images.shape, action_data.shape)
-    return images, action_data
-
-
-def _get_images(folder, at_most=None):
-  files = _get_image_file_list(folder)
-  files.sort()
-  if at_most:
-    files = files[0:at_most]
-  images = list(map(_embed_3_axis, map(misc.imread, files)))
-  to_int = lambda s: int(s.split('/')[-1].split('.')[0][1:])
-  labels = list(map(to_int, files))
-  ut.print_info('Found %d images: %s...' % (len(labels), str(labels[1:5])))
-  images, labels = np.asarray(images), np.asarray(labels, dtype=np.uint32)
-  # print(images.dtype, images.shape,  images.nbytes/1000000, images.max())
-  return images, labels
+    return shape
 
 
 def rescale_ds(ds, min, max):
@@ -155,23 +98,12 @@ def rescale_ds(ds, min, max):
   return ds
 
 
-def _get_image_file_list(folder):
-  images = [join(folder, f) for f in listdir(folder) if isfile(join(folder, f))]
-  images = list(filter(lambda x: '.png' in x or '.jpg' in x, images))
-  return images
-
-
 def get_input_name(input_folder):
-  if input_folder[-1] != '/':
-    input_folder += '/'
-  print(input_folder.split('/'))
-  name = input_folder.replace('/img', '').replace('/dep', '').split('/')[-2]
-  if 'tmp_grey' in input_folder:
-    name = 'g_' + name
-  if 'dep' in input_folder:
-    name = 'D' + name
-  if 'img' in input_folder:
-    name = 'I' + name
+  spliter = '/img/' if '/img/' in input_folder else '/dep/'
+  main_part = input_folder.split(spliter)[0]
+  name = main_part.split('/')[-1]
+  name = name.replace('.tar.gz', '')
+  print('input folder: %s -> %s' % (input_folder.split('/'), name))
   return name
 
 
@@ -203,13 +135,11 @@ def apply_gaussian(images, sigma):
   return res
 
 
-# @ut.timeit
 def permute_array_in_series(array, series_length, allow_shift=True):
   res, permutation = permute_data_in_series((array,), series_length)
   return res[0], permutation
 
 
-# @ut.timeit
 def permute_data_in_series(arrays, series_length, allow_shift=True):
   shift_possibilities = len(arrays[0]) % series_length
   series_count = int(len(arrays[0]) / series_length)
@@ -260,15 +190,4 @@ def select_random(n, length=None, set=None):
     return set[select]
 
 if __name__ == '__main__':
-  print(permute_data_in_series((np.arange(0, 18),), 3))
-  exit(0)
-  images = get_images(INPUT_FOLDER)
-
-  inputs = Input(images)
-  for j in range(10):
-    print('adf', inputs.generate_minibatch(7).shape)
-
-  import matplotlib.pyplot as pyplt
-  pyplt.imshow(inputs.generate_minibatch(7)[0])
-  pyplt.show()
-  # face = misc.imread('face.png')
+  print(read_ds_zip('/home/eugene/repo/data/tmp/romb8.5.6.tar.gz').shape)

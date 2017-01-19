@@ -18,12 +18,15 @@ import time
 
 
 tf.app.flags.DEFINE_string('suffix', 'run', 'Suffix to use to distinguish models by purpose')
-tf.app.flags.DEFINE_string('input_path', '../data/tmp_grey/romb8.2.2/', 'input folder')
+tf.app.flags.DEFINE_string('input_path', '/home/eugene/repo/data/tmp/romb8.5.6.tar.gz', 'input folder')
+tf.app.flags.DEFINE_string('test_path', '/home/eugene/repo/data/tmp/romb8.3.6.tar.gz', 'input folder')
+tf.app.flags.DEFINE_integer('test_max', 2000, 'max numer of exampes in the test set')
 tf.app.flags.DEFINE_string('save_path', './tmp/checkpoint', 'Where to save the model checkpoints.')
 tf.app.flags.DEFINE_string('logdir', '', 'where to save logs.')
 tf.app.flags.DEFINE_string('load_from_checkpoint', None, 'Load model state from particular checkpoint')
 
 tf.app.flags.DEFINE_integer('max_epochs', 20, 'Train for at most this number of epochs')
+tf.app.flags.DEFINE_integer('epoch_size', 100, 'Number of batches per epoch')
 tf.app.flags.DEFINE_integer('save_every', 100, 'Save model state every INT epochs')
 tf.app.flags.DEFINE_boolean('load_state', True, 'Load state if possible ')
 
@@ -37,8 +40,8 @@ tf.app.flags.DEFINE_integer('vis_substeps', 10, 'Use INT intermediate images')
 
 tf.app.flags.DEFINE_integer('save_encodings_every', 100, 'Save model state every INT epochs')
 
-tf.app.flags.DEFINE_integer('blur_sigma', 50, 'Image blur maximum effect')
-tf.app.flags.DEFINE_integer('blur_sigma_decrease', 20000, 'Decrease image blur every X epochs')
+tf.app.flags.DEFINE_float('blur_sigma', 5.0, 'Image blur maximum effect')
+tf.app.flags.DEFINE_integer('blur_sigma_decrease', 20000, 'Decrease image blur every X steps')
 
 FLAGS = tf.app.flags.FLAGS
 
@@ -70,6 +73,7 @@ def get_every_dataset():
 class Model:
   model_id = 'base'
   epoch_size, test_size = None, None
+  test_set = None
 
   _writer, _saver = None, None
   _dataset, _filters = None, None
@@ -136,14 +140,20 @@ class Model:
 
   _blurred_dataset, _last_blur_sigma = None, 0
 
+  def _get_blur_sigma(self, step=None):
+    step = step if step is not None else self._current_step.eval()
+    calculated_sigma = FLAGS.blur_sigma - int(10*step / FLAGS.blur_sigma_decrease)/10.0
+    return max(0, calculated_sigma)
+
+  @ut.timeit
   def _get_blurred_dataset(self):
     if FLAGS.blur_sigma != 0:
-      current_sigma = max(0, FLAGS.blur_sigma - int(self._current_step.eval() / FLAGS.blur_sigma_decrease))
+      current_sigma = self._get_blur_sigma()
       if current_sigma != self._last_blur_sigma:
-        print('sigmas', current_sigma,  self._last_blur_sigma, current_sigma/10.0)
-        self._blurred_dataset = inp.apply_gaussian(self._dataset, sigma=current_sigma/10.0)
+        print('sigmas current:%f last:%f' % (current_sigma,  self._last_blur_sigma))
         self._last_blur_sigma = current_sigma
-    return self._blurred_dataset if self._blurred_dataset is not None else self._dataset
+        self._blurred_dataset = inp.apply_gaussian(self.dataset, sigma=current_sigma)
+    return self._blurred_dataset if self._blurred_dataset is not None else self.dataset
 
   # MISC
 
@@ -170,37 +180,43 @@ class Model:
 
   def _register_training_start(self):
     self._epoch_stats = self._get_stats_template()
+    self.test_set = inp.read_ds_zip(FLAGS.test_path)[0:FLAGS.test_max]
+    self.test_set = inp.rescale_ds(self.test_set, self._activation.min, self._activation.max)
     self._stats = {
       'epoch_accuracy': [],
-      'visual_set': inp.select_random(FLAGS.batch_size, len(self._dataset)),
-      'ds_length': len(self._dataset),
       'epoch_reconstructions': [],
       'permutation': None
     }
 
-  def _register_batch(self, batch, encoding, reconstruction, loss):
-    self._epoch_stats['batch'].append(batch)
-    self._epoch_stats['encoding'].append(encoding)
-    self._epoch_stats['reconstruction'].append(reconstruction)
+  def _register_batch(self, loss):
     self._epoch_stats['total_loss'] += loss
 
+  MAX_IMAGES = 4
+
   # @ut.timeit
-  def _register_epoch(self, epoch, total_epochs, permutation, sess):
+  def _register_epoch(self, epoch, total_epochs, elapsed, sess):
     if is_stopping_point(epoch, total_epochs, FLAGS.save_every):
       self._saver.save(sess, self.get_checkpoint_path())
 
-    accuracy = 100000 * np.sqrt(self._epoch_stats['total_loss'] / np.prod(self._batch_shape) / self.epoch_size)
-    self._epoch_stats['permutation_reverse'] = np.argsort(permutation)
-    visual_set = self._get_visual_set()
+    accuracy = 100000 * np.sqrt(self._epoch_stats['total_loss'] / np.prod(self._batch_shape) / FLAGS.epoch_size)
 
-    if FLAGS.visualize and is_stopping_point(epoch, total_epochs, stop_x_times=FLAGS.vis_substeps):
-      self._stats['epoch_reconstructions'].append(visual_set)
     if is_stopping_point(epoch, total_epochs, FLAGS.save_encodings_every):
-      self.save_encodings(accuracy)
-      self.save_visualization(visual_set, accuracy)
-    self._stats['epoch_accuracy'].append(accuracy)
+      digest = self.evaluate(sess, take=self.MAX_IMAGES)
+      data = {
+        'enc': np.asarray(digest[0]),
+        'rec': np.asarray(digest[1]),
+        'blu': np.asarray(digest[2])
+      }
+      # save
+      meta = {'suf': 'encodings', 'e': '%06d' % int(self.get_past_epochs()), 'er': int(accuracy)}
+      projection_file = ut.to_file_name(meta, FLAGS.save_path)
+      np.save(projection_file, data)
+      # visualize
+      # if DEV:
+      vis.visualize_encoding_cross(digest[0], FLAGS.save_path, meta, data['blu'], data['rec'])
 
-    self.print_epoch_info(accuracy, epoch, self._epoch_stats['reconstruction'][0], total_epochs)
+    self._stats['epoch_accuracy'].append(accuracy)
+    self.print_epoch_info(accuracy, epoch, total_epochs, elapsed)
     if epoch + 1 != total_epochs:
       self._epoch_stats = self._get_stats_template()
 
@@ -217,44 +233,32 @@ class Model:
     meta = self.get_meta()
     meta['acu'] = int(best_acc)
     meta['e'] = self.get_past_epochs()
-    original_vis_set = self._dataset[self._stats['visual_set']]
-    ut.reconstruct_images_epochs(np.asarray(self._stats['epoch_reconstructions']), original_vis_set,
-                                 save_params=meta, img_shape=self._image_shape)
     ut.print_time('Best Quality: %f for %s' % (best_acc, ut.to_file_name(meta)))
     return meta
 
-  def save_encodings(self, accuracy):
-    encodings = np.vstack(self._epoch_stats['encoding'][:self._stats['ds_length']])
-    encodings = encodings[self._epoch_stats['permutation_reverse']]
-    epochs_past = self.get_past_epochs()
-    meta = {'suf': 'encodings', 'e': '%06d' % int(epochs_past), 'er': int(accuracy)}
-    projection_file = ut.to_file_name(meta, FLAGS.save_path, 'txt')
-    np.savetxt(projection_file, encodings)
-    return encodings, meta
-
-  def save_visualization(self, reconstruction, accuracy):
-    encodings, meta = self.save_encodings(accuracy)
-    visual_set = self._get_blurred_dataset()[self._stats['visual_set']]
-    vis.visualize_encoding_cross(encodings, FLAGS.save_path, meta, visual_set, reconstruction)
-
-  def print_epoch_info(self, accuracy, current_epoch, reconstruction, epochs):
+  def print_epoch_info(self, accuracy, current_epoch, epochs, elapsed):
     epochs_past = self.get_past_epochs() - current_epoch
     reconstruction_info = ''
     accuracy_info = '' if accuracy is None else '| accuracy %d' % int(accuracy)
-    if FLAGS.visualize and is_stopping_point(current_epoch, epochs,
-                                          stop_every=FLAGS.vis_substeps):
-      reconstruction_info = '| (min, max): (%3d %3d)' % (
-      np.min(reconstruction),
-      np.max(reconstruction))
+
     epoch_past_info = '' if epochs_past is None else '+%d' % (epochs_past - 1)
-    info_string = 'Epochs %2d/%d%s %s %s' % (
+    time_info = '%.3fsec/batch' % (elapsed/FLAGS.epoch_size)
+    delay_info = ''
+      # 'fe|bl|tr: %.1f|%.1f|%.1f sec' % \
+      #            (self._epoch_stats['t_fetch'],
+      #             self._epoch_stats['t_blur'],
+      #             self._epoch_stats['t_prop'])
+    info_string = 'Epochs %2d/%d%s %s %s %s %s' % (
       current_epoch + 1,
       epochs,
       epoch_past_info,
       accuracy_info,
-      reconstruction_info)
+      reconstruction_info,
+      time_info,
+      delay_info)
 
-    time_per_image = (time.time() - self._epoch_stats['start'])/(self.epoch_size*FLAGS.batch_size)
-    time_str = ' t/img:%f' % time_per_image
+    # time_per_image = (time.time() - self._epoch_stats['start'])/(FLAGS.epoch_size*FLAGS.batch_size)
+    # time_str = ' t/img:%f' % time_per_image
+    # info_string += time_str
 
-    ut.print_time(info_string + time_str, same_line=True)
+    ut.print_time(info_string, same_line=True)
