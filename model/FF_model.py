@@ -149,6 +149,9 @@ class FF_model(Model.Model):
     self.dataset = inp.rescale_ds(self.dataset, activation_func_bounds.min, activation_func_bounds.max)
     self._image_shape = list(self.dataset.shape)[1:]
 
+    self.test_set = inp.read_ds_zip(FLAGS.test_path)[0:FLAGS.test_max]
+    self.test_set = inp.rescale_ds(self.test_set, self._activation.min, self._activation.max)
+
 
   # @ut.timeit
   def _get_epoch_dataset(self):

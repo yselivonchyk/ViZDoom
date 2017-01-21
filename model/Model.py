@@ -180,8 +180,6 @@ class Model:
 
   def _register_training_start(self):
     self._epoch_stats = self._get_stats_template()
-    self.test_set = inp.read_ds_zip(FLAGS.test_path)[0:FLAGS.test_max]
-    self.test_set = inp.rescale_ds(self.test_set, self._activation.min, self._activation.max)
     self._stats = {
       'epoch_accuracy': [],
       'epoch_reconstructions': [],
@@ -205,7 +203,7 @@ class Model:
       data = {
         'enc': np.asarray(digest[0]),
         'rec': np.asarray(digest[1]),
-        'blu': np.asarray(digest[2])
+        'blu': np.asarray(digest[2][:self.MAX_IMAGES])
       }
       # save
       meta = {'suf': 'encodings', 'e': '%06d' % int(self.get_past_epochs()), 'er': int(accuracy)}
@@ -238,27 +236,14 @@ class Model:
 
   def print_epoch_info(self, accuracy, current_epoch, epochs, elapsed):
     epochs_past = self.get_past_epochs() - current_epoch
-    reconstruction_info = ''
     accuracy_info = '' if accuracy is None else '| accuracy %d' % int(accuracy)
-
     epoch_past_info = '' if epochs_past is None else '+%d' % (epochs_past - 1)
-    time_info = '%.3fsec/batch' % (elapsed/FLAGS.epoch_size)
-    delay_info = ''
-      # 'fe|bl|tr: %.1f|%.1f|%.1f sec' % \
-      #            (self._epoch_stats['t_fetch'],
-      #             self._epoch_stats['t_blur'],
-      #             self._epoch_stats['t_prop'])
-    info_string = 'Epochs %2d/%d%s %s %s %s %s' % (
-      current_epoch + 1,
-      epochs,
-      epoch_past_info,
-      accuracy_info,
-      reconstruction_info,
-      time_info,
-      delay_info)
+    epoch_count = 'Epochs %2d/%d%s' % (current_epoch + 1, epochs, epoch_past_info)
+    time_info = '%2dms/bt' % (elapsed / FLAGS.epoch_size*1000)
 
-    # time_per_image = (time.time() - self._epoch_stats['start'])/(FLAGS.epoch_size*FLAGS.batch_size)
-    # time_str = ' t/img:%f' % time_per_image
-    # info_string += time_str
+    info_string = ' '.join([
+      epoch_count,
+      accuracy_info,
+      time_info])
 
     ut.print_time(info_string, same_line=True)

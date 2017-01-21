@@ -103,7 +103,7 @@ def get_input_name(input_folder):
   main_part = input_folder.split(spliter)[0]
   name = main_part.split('/')[-1]
   name = name.replace('.tar.gz', '')
-  print('input folder: %s -> %s' % (input_folder.split('/'), name))
+  ut.print_info('input folder: %s -> %s' % (input_folder.split('/'), name))
   return name
 
 
